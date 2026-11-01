@@ -88,16 +88,14 @@ npm install
 
 ### 4. Configure environment variables
 
-Create a `.env.local` file in the project root and add your Supabase project credentials.
+Create a `.env.local` file in the project root and add your Supabase project URL and publishable key. Use the exact variable names below:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-Check the variable names used in `utils/supabase/client.ts` and configure any additional server-side variables required by the project.
-
-**Never upload `.env.local` or private service-role keys to GitHub.**
+If your local setup requires any additional server-only credentials, configure them separately using the variable names expected by the server code. Never prefix secret keys with `NEXT_PUBLIC_`, and never commit `.env.local` or service-role keys to GitHub.
 
 ### 5. Start the development server
 
