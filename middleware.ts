@@ -97,6 +97,18 @@ export async function middleware(request: NextRequest) {
     return redirectTo("/kitchen");
   }
 
+  // Billing staff can access only the billing dashboard
+  if (role === "billing") {
+    if (
+      pathname === "/billing" ||
+      pathname.startsWith("/billing/")
+    ) {
+      return response;
+    }
+
+    return redirectTo("/billing");
+  }
+
   // Unknown role
   return redirectTo("/login");
 }
