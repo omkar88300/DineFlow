@@ -31,12 +31,14 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        id: install
         run: npm ci
 
       - name: Run ESLint
         run: npm run lint
 
       - name: Build Next.js application
+        if: ${{ always() && steps.install.outcome == 'success' }}
         run: npm run build
         env:
           # Public placeholders are used only for build-time compilation.
