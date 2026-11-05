@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     if (
       email.length > 254 ||
-      !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     ) {
       return NextResponse.json(
         { error: "Enter a valid email address." },
