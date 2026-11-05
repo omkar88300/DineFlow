@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     if (
       email.length > 254 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)
     ) {
       return NextResponse.json(
         { error: "Enter a valid email address." },
@@ -144,12 +144,27 @@ export async function POST(request: Request) {
      * Check whether this email already exists
      * in this restaurant's staff table.
      */
-    const { data: existingStaff } = await adminSupabase
+    const {
+      data: existingStaff,
+      error: existingStaffError,
+    } = await adminSupabase
       .from("staff")
       .select("id")
       .eq("hotel_id", adminStaff.hotel_id)
       .ilike("email", email)
       .maybeSingle();
+
+    if (existingStaffError) {
+      console.error("Check existing staff error:", existingStaffError);
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to verify whether this staff member already exists. Please try again.",
+        },
+        { status: 500 }
+      );
+    }
 
     if (existingStaff) {
       return NextResponse.json(
