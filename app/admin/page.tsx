@@ -104,6 +104,7 @@ export default function AdminPage() {
     }
 
     const orders = todayOrders || [];
+type DashboardOrder = (typeof orders)[number];
 
     // Today&apos;s revenue = paid orders only
     const todayRevenue = orders
@@ -324,8 +325,7 @@ export default function AdminPage() {
 
 
           {/* TABLES */}
-          <a
-            href="/tables"
+          <Link href="/tables"
             className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
           >
             <div className="text-3xl">
@@ -342,8 +342,7 @@ export default function AdminPage() {
           </a>
 
           {/* KITCHEN */}
-          <a
-            href="/kitchen"
+          <Link href="/kitchen"
             className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
           >
               <div className="text-3xl">
@@ -357,10 +356,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Manage live orders
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/waiter"
+            <Link href="/waiter"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -374,10 +372,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Place table orders
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/billing"
+            <Link href="/billing"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -391,11 +388,10 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Manage payments
               </p>
-            </a>
+            </Link>
 
             {/* MENU MANAGEMENT */}
-            <a
-              href="/menu"
+            <Link href="/menu"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -409,10 +405,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Add, edit & manage menu
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/staff"
+            <Link href="/staff"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -426,7 +421,7 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Add, edit & manage staff
               </p>
-            </a>
+            </Link>
 
             <Link
               href="/"
