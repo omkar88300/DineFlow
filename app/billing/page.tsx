@@ -94,7 +94,7 @@ export default function BillingPage() {
     }
 
     const formattedOrders: Order[] =
-      (ordersData || []).map((order: any) => ({
+      (ordersData || []).map((order: { id: string; order_number: number; status: string; subtotal: number | string; discount: number | string; total: number | string; payment_status: string; payment_method: string | null; created_at: string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
         id: order.id,
         order_number: order.order_number,
         status: order.status,
@@ -105,7 +105,7 @@ export default function BillingPage() {
         payment_method: order.payment_method,
         created_at: order.created_at,
         table_number:
-          order.restaurant_tables?.table_number ?? null,
+          (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
       }));
 
     setOrders(formattedOrders);
