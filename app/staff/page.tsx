@@ -147,7 +147,7 @@ export default function StaffPage() {
         }
 
   useEffect(() => {
-    loadStaff();
+    void Promise.resolve().then(loadStaff);
   }, []);
 
   return (
