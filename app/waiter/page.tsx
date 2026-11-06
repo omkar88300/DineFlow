@@ -280,7 +280,7 @@ export default function WaiterPage() {
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
-                Choose the customer's table.
+                Choose the customer&apos;s table.
               </p>
             </div>
 
