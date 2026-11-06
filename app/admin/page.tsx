@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 type Stats = {
   todayOrders: number;
@@ -104,7 +105,7 @@ export default function AdminPage() {
 
     const orders = todayOrders || [];
 
-    // Today's revenue = paid orders only
+    // Today&apos;s revenue = paid orders only
     const todayRevenue = orders
       .filter(
         (order) =>
@@ -154,15 +155,14 @@ export default function AdminPage() {
 
     // Recent orders
     setRecentOrders(
-      orders.slice(0, 6).map((order: any) => ({
+      orders.slice(0, 6).map((order: { id: string; order_number: number; status: string; payment_status: string; total: number | string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
         id: order.id,
         order_number: order.order_number,
         status: order.status,
         payment_status: order.payment_status,
         total: Number(order.total || 0),
         table_number:
-          order.restaurant_tables?.table_number ??
-          null,
+          (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
       }))
     );
 
@@ -428,7 +428,7 @@ export default function AdminPage() {
               </p>
             </a>
 
-            <a
+            <Link
               href="/"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
@@ -443,7 +443,7 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Open digital menu
               </p>
-            </a>
+            </Link>
 
           </div>
 
