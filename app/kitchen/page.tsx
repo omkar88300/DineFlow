@@ -88,7 +88,7 @@ export default function KitchenPage() {
       }
 
       const formattedOrders: Order[] = (ordersData || []).map(
-        (order: any) => ({
+        (order: { id: string; order_number: number; status: string; subtotal: number | string; discount: number | string; total: number | string; created_at: string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
           id: order.id,
           order_number: order.order_number,
           status: order.status,
@@ -97,7 +97,7 @@ export default function KitchenPage() {
           total: Number(order.total),
           created_at: order.created_at,
           table_number:
-            order.restaurant_tables?.table_number ?? null,
+            (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
         })
       );
 
@@ -159,7 +159,7 @@ export default function KitchenPage() {
   // ============================================
 
   useEffect(() => {
-    loadOrders();
+    void Promise.resolve().then(loadOrders);
   }, []);
 
   // ============================================
@@ -185,7 +185,7 @@ export default function KitchenPage() {
     const supabase = createClient();
 
 
-    const { data, error } = await supabase.rpc(
+    const { error } = await supabase.rpc(
       "update_kitchen_order_status",
       {
         p_order_id: orderId,
