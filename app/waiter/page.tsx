@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 type Table = {
@@ -20,6 +20,76 @@ type MenuItem = {
 
 type Cart = Record<string, number>;
 
+type WaiterDashboardData = {
+  tables: Table[];
+  menuItems: MenuItem[];
+};
+
+async function fetchWaiterDashboardData(
+  supabase: ReturnType<typeof createClient>
+): Promise<WaiterDashboardData> {
+  const { data: hotel, error: hotelError } = await supabase
+    .from("hotels")
+    .select("id")
+    .eq("slug", "dineflow-demo")
+    .single();
+
+  if (hotelError || !hotel) {
+    throw hotelError ?? new Error("Hotel not found.");
+  }
+
+  const { data: tableData, error: tableError } = await supabase
+    .from("restaurant_tables")
+    .select("id, table_number, capacity, is_active")
+    .eq("hotel_id", hotel.id)
+    .eq("is_active", true)
+    .order("table_number");
+
+  if (tableError) {
+    throw tableError;
+  }
+
+  const { data: categories, error: categoryError } = await supabase
+    .from("menu_categories")
+    .select("id, name")
+    .eq("hotel_id", hotel.id)
+    .eq("is_active", true);
+
+  if (categoryError) {
+    throw categoryError;
+  }
+
+  const categoryMap: Record<string, string> = {};
+
+  (categories || []).forEach((category) => {
+    categoryMap[category.id] = category.name;
+  });
+
+  const { data: items, error: menuError } = await supabase
+    .from("menu_items")
+    .select("id, name, description, price, category_id")
+    .eq("hotel_id", hotel.id)
+    .eq("is_available", true)
+    .order("name");
+
+  if (menuError) {
+    throw menuError;
+  }
+
+  const formattedItems: MenuItem[] = (items || []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    price: Number(item.price),
+    category: categoryMap[item.category_id] || "Other",
+  }));
+
+  return {
+    tables: tableData || [],
+    menuItems: formattedItems,
+  };
+}
+
 export default function WaiterPage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -32,90 +102,33 @@ export default function WaiterPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [message, setMessage] = useState("");
 
-  const loadData = useCallback(async () => {
-    try {
-      // Get hotel
-      const { data: hotel, error: hotelError } = await supabase
-        .from("hotels")
-        .select("id, name")
-        .eq("slug", "dineflow-demo")
-        .single();
+  useEffect(() => {
+    let isActive = true;
 
-      if (hotelError || !hotel) {
-        console.error("Failed to load hotel:", hotelError);
-        setMessage("Hotel not found.");
-        return;
-      }
+    void fetchWaiterDashboardData(supabase)
+      .then((result) => {
+        if (!isActive) return;
 
-      // Get tables
-      const { data: tableData, error: tableError } = await supabase
-        .from("restaurant_tables")
-        .select("id, table_number, capacity, is_active")
-        .eq("hotel_id", hotel.id)
-        .eq("is_active", true)
-        .order("table_number");
+        setTables(result.tables);
+        setMenuItems(result.menuItems);
+      })
+      .catch((error: unknown) => {
+        console.error("Waiter dashboard loading failed:", error);
 
-      if (tableError) {
-        console.error("Failed to load tables:", tableError);
-        setMessage("Failed to load tables.");
-        return;
-      }
-
-      setTables(tableData || []);
-
-      // Get categories
-      const { data: categories, error: categoryError } = await supabase
-        .from("menu_categories")
-        .select("id, name")
-        .eq("hotel_id", hotel.id)
-        .eq("is_active", true);
-
-      if (categoryError) {
-        console.error("Failed to load menu categories:", categoryError);
-        setMessage("Failed to load menu categories.");
-        return;
-      }
-
-      const categoryMap: Record<string, string> = {};
-
-      (categories || []).forEach((category) => {
-        categoryMap[category.id] = category.name;
+        if (isActive) {
+          setMessage("Unable to load the waiter dashboard. Please refresh and try again.");
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setLoading(false);
+        }
       });
 
-      // Get menu items
-      const { data: items, error: menuError } = await supabase
-        .from("menu_items")
-        .select("id, name, description, price, category_id")
-        .eq("hotel_id", hotel.id)
-        .eq("is_available", true)
-        .order("name");
-
-      if (menuError) {
-        console.error("Failed to load menu:", menuError);
-        setMessage("Failed to load menu.");
-        return;
-      }
-
-      const formattedItems: MenuItem[] = (items || []).map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        price: Number(item.price),
-        category: categoryMap[item.category_id] || "Other",
-      }));
-
-      setMenuItems(formattedItems);
-    } catch (error) {
-      console.error("Unexpected waiter dashboard loading error:", error);
-      setMessage("Unable to load the waiter dashboard. Please refresh and try again.");
-    } finally {
-      setLoading(false);
-    }
+    return () => {
+      isActive = false;
+    };
   }, [supabase]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
 
   function addToCart(itemId: string) {
     setCart((previous) => ({
