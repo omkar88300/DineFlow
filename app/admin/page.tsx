@@ -242,7 +242,7 @@ export default function AdminPage() {
             </div>
 
             <p className="text-gray-500 mt-4">
-              Today's Orders
+              Today&apos;s Orders
             </p>
 
             <p className="text-3xl font-bold mt-1">
@@ -257,7 +257,7 @@ export default function AdminPage() {
             </div>
 
             <p className="text-gray-500 mt-4">
-              Today's Revenue
+              Today&apos;s Revenue
             </p>
 
             <p className="text-3xl font-bold mt-1">
@@ -456,7 +456,7 @@ export default function AdminPage() {
 
             <div>
               <h2 className="text-2xl font-bold">
-                Today's Orders
+                Today&apos;s Orders
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
