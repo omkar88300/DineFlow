@@ -339,7 +339,7 @@ type DashboardOrder = (typeof orders)[number];
             <p className="text-gray-500 text-sm mt-1">
               Manage tables & QR codes
             </p>
-          </a>
+          </Link>
 
           {/* KITCHEN */}
           <Link href="/kitchen"
