@@ -147,7 +147,7 @@ export default function StaffPage() {
         }
 
   useEffect(() => {
-    loadStaff();
+    void Promise.resolve().then(loadStaff);
   }, []);
 
   return (
@@ -336,7 +336,7 @@ export default function StaffPage() {
                 </h2>
 
                 <p className="text-gray-500 mt-1">
-                Update {editingStaff.name}'s details.
+                Update {editingStaff.name}&apos;s details.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">

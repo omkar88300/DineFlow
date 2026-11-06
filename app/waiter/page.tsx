@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 type Table = {
@@ -20,8 +20,78 @@ type MenuItem = {
 
 type Cart = Record<string, number>;
 
+type WaiterDashboardData = {
+  tables: Table[];
+  menuItems: MenuItem[];
+};
+
+async function fetchWaiterDashboardData(
+  supabase: ReturnType<typeof createClient>
+): Promise<WaiterDashboardData> {
+  const { data: hotel, error: hotelError } = await supabase
+    .from("hotels")
+    .select("id")
+    .eq("slug", "dineflow-demo")
+    .single();
+
+  if (hotelError || !hotel) {
+    throw hotelError ?? new Error("Hotel not found.");
+  }
+
+  const { data: tableData, error: tableError } = await supabase
+    .from("restaurant_tables")
+    .select("id, table_number, capacity, is_active")
+    .eq("hotel_id", hotel.id)
+    .eq("is_active", true)
+    .order("table_number");
+
+  if (tableError) {
+    throw tableError;
+  }
+
+  const { data: categories, error: categoryError } = await supabase
+    .from("menu_categories")
+    .select("id, name")
+    .eq("hotel_id", hotel.id)
+    .eq("is_active", true);
+
+  if (categoryError) {
+    throw categoryError;
+  }
+
+  const categoryMap: Record<string, string> = {};
+
+  (categories || []).forEach((category) => {
+    categoryMap[category.id] = category.name;
+  });
+
+  const { data: items, error: menuError } = await supabase
+    .from("menu_items")
+    .select("id, name, description, price, category_id")
+    .eq("hotel_id", hotel.id)
+    .eq("is_available", true)
+    .order("name");
+
+  if (menuError) {
+    throw menuError;
+  }
+
+  const formattedItems: MenuItem[] = (items || []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    price: Number(item.price),
+    category: categoryMap[item.category_id] || "Other",
+  }));
+
+  return {
+    tables: tableData || [],
+    menuItems: formattedItems,
+  };
+}
+
 export default function WaiterPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [tables, setTables] = useState<Table[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -32,90 +102,33 @@ export default function WaiterPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [message, setMessage] = useState("");
 
-  // Load tables and menu
   useEffect(() => {
-    loadData();
-  }, []);
+    let isActive = true;
 
-  async function loadData() {
-    setLoading(true);
-    setMessage("");
+    void fetchWaiterDashboardData(supabase)
+      .then((result) => {
+        if (!isActive) return;
 
-    // Get hotel
-    const { data: hotel, error: hotelError } = await supabase
-      .from("hotels")
-      .select("id, name")
-      .eq("slug", "dineflow-demo")
-      .single();
+        setTables(result.tables);
+        setMenuItems(result.menuItems);
+      })
+      .catch((error: unknown) => {
+        console.error("Waiter dashboard loading failed:", error);
 
-    if (hotelError || !hotel) {
-      setMessage("Hotel not found.");
-      setLoading(false);
-      return;
-    }
+        if (isActive) {
+          setMessage("Unable to load the waiter dashboard. Please refresh and try again.");
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setLoading(false);
+        }
+      });
 
-    // Get tables
-    const { data: tableData, error: tableError } = await supabase
-      .from("restaurant_tables")
-      .select("id, table_number, capacity, is_active")
-      .eq("hotel_id", hotel.id)
-      .eq("is_active", true)
-      .order("table_number");
-
-    if (tableError) {
-      setMessage("Failed to load tables.");
-      setLoading(false);
-      return;
-    }
-
-    setTables(tableData || []);
-
-    // Get categories
-    const { data: categories, error: categoryError } = await supabase
-      .from("menu_categories")
-      .select("id, name")
-      .eq("hotel_id", hotel.id)
-      .eq("is_active", true);
-
-    if (categoryError) {
-      setMessage("Failed to load menu categories.");
-      setLoading(false);
-      return;
-    }
-
-    const categoryMap: Record<string, string> = {};
-
-    (categories || []).forEach((category) => {
-      categoryMap[category.id] = category.name;
-    });
-
-    // Get menu items
-    const { data: items, error: menuError } = await supabase
-      .from("menu_items")
-      .select(
-        "id, name, description, price, category_id"
-      )
-      .eq("hotel_id", hotel.id)
-      .eq("is_available", true)
-      .order("name");
-
-    if (menuError) {
-      setMessage("Failed to load menu.");
-      setLoading(false);
-      return;
-    }
-
-    const formattedItems: MenuItem[] = (items || []).map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      price: Number(item.price),
-      category: categoryMap[item.category_id] || "Other",
-    }));
-
-    setMenuItems(formattedItems);
-    setLoading(false);
-  }
+    return () => {
+      isActive = false;
+    };
+  }, [supabase]);
 
   function addToCart(itemId: string) {
     setCart((previous) => ({
@@ -172,63 +185,57 @@ export default function WaiterPage() {
     setPlacingOrder(true);
     setMessage("");
 
-    // Get hotel
-    const { data: hotel, error: hotelError } = await supabase
-      .from("hotels")
-      .select("id, discount_enabled, discount_type, discount_value")
-      .eq("slug", "dineflow-demo")
-      .single();
+    try {
+      // Verify the restaurant before creating the order.
+      const { data: hotel, error: hotelError } = await supabase
+        .from("hotels")
+        .select("id")
+        .eq("slug", "dineflow-demo")
+        .single();
 
-    if (hotelError || !hotel) {
-      setMessage("Hotel not found.");
-      setPlacingOrder(false);
-      return;
-    }
-
-    // Calculate discount
-    let discountAmount = 0;
-
-    if (hotel.discount_enabled) {
-      if (hotel.discount_type === "percentage") {
-        discountAmount =
-          (subtotal * Number(hotel.discount_value)) / 100;
-      } else if (hotel.discount_type === "fixed") {
-        discountAmount = Number(hotel.discount_value);
+      if (hotelError || !hotel) {
+        console.error("Failed to verify hotel before waiter order:", hotelError);
+        setMessage("Unable to verify the restaurant. Please try again.");
+        return;
       }
+
+      const items = cartItems.map((item) => ({
+        menu_item_id: item.id,
+        quantity: cart[item.id],
+      }));
+
+      const { data, error: orderError } = await supabase.rpc(
+        "create_waiter_order",
+        {
+          p_table_id: selectedTable.id,
+          p_items: items,
+        }
+      );
+
+      if (orderError) {
+        console.error("Waiter order creation failed:", orderError);
+        setMessage("Unable to place the order. Please try again.");
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setMessage("The order could not be confirmed. Please try again.");
+        return;
+      }
+
+      const order = data[0];
+
+      setMessage(
+        `Order #${order.created_order_number} created successfully!`
+      );
+
+      clearCart();
+    } catch (error) {
+      console.error("Unexpected waiter order error:", error);
+      setMessage("Something went wrong while placing the order. Please try again.");
+    } finally {
+      setPlacingOrder(false);
     }
-
-    const items = cartItems.map((item) => ({
-  menu_item_id: item.id,
-  quantity: cart[item.id],
-}));
-
-const { data, error: orderError } = await supabase.rpc(
-  "create_waiter_order",
-  {
-    p_table_id: selectedTable.id,
-    p_items: items,
-  }
-);
-
-if (orderError || !data || data.length === 0) {
-  setMessage(
-    `Failed to create order: ${
-      orderError?.message || "Unknown database error"
-    }`
-  );
-
-  setPlacingOrder(false);
-  return;
-}
-
-const order = data[0];
-
-setMessage(
-  `Order #${order.created_order_number} created successfully!`
-);
-
-    clearCart();
-    setPlacingOrder(false);
   }
 
   if (loading) {
@@ -273,7 +280,7 @@ setMessage(
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
-                Choose the customer's table.
+                Choose the customer&apos;s table.
               </p>
             </div>
 

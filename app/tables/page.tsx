@@ -94,7 +94,7 @@ const [editCapacity, setEditCapacity] =
     }
 
   useEffect(() => {
-    loadTables();
+    void Promise.resolve().then(loadTables);
   }, []);
 
   return (
