@@ -100,7 +100,12 @@ export default function WaiterPage() {
   const [cart, setCart] = useState<Cart>({});
   const [loading, setLoading] = useState(true);
   const [placingOrder, setPlacingOrder] = useState(false);
-  const [message, setMessage] = useState("");
+  type DashboardMessage = {
+  text: string;
+  type: "success" | "error";
+};
+
+const [message, setMessage] = useState<DashboardMessage | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -116,7 +121,7 @@ export default function WaiterPage() {
         console.error("Waiter dashboard loading failed:", error);
 
         if (isActive) {
-          setMessage("Unable to load the waiter dashboard. Please refresh and try again.");
+          setMessage({ text: "Unable to load the waiter dashboard. Please refresh and try again.", type: "error" });
         }
       })
       .finally(() => {
@@ -173,17 +178,17 @@ export default function WaiterPage() {
 
   async function placeOrder() {
     if (!selectedTable) {
-      setMessage("Please select a table first.");
+      setMessage({ text: "Please select a table first.", type: "error" });
       return;
     }
 
     if (cartItems.length === 0) {
-      setMessage("Please add at least one item.");
+      setMessage({ text: "Please add at least one item.", type: "error" });
       return;
     }
 
     setPlacingOrder(true);
-    setMessage("");
+    setMessage(null);
 
     try {
       // Verify the restaurant before creating the order.
@@ -195,7 +200,7 @@ export default function WaiterPage() {
 
       if (hotelError || !hotel) {
         console.error("Failed to verify hotel before waiter order:", hotelError);
-        setMessage("Unable to verify the restaurant. Please try again.");
+        setMessage({ text: "Unable to verify the restaurant. Please try again.", type: "error" });
         return;
       }
 
@@ -214,25 +219,26 @@ export default function WaiterPage() {
 
       if (orderError) {
         console.error("Waiter order creation failed:", orderError);
-        setMessage("Unable to place the order. Please try again.");
+        setMessage({ text: "Unable to place the order. Please try again.", type: "error" });
         return;
       }
 
       if (!data || data.length === 0) {
-        setMessage("The order could not be confirmed. Please try again.");
+        setMessage({ text: "The order could not be confirmed. Please try again.", type: "error" });
         return;
       }
 
       const order = data[0];
 
-      setMessage(
-        `Order #${order.created_order_number} created successfully!`
-      );
+      setMessage({
+        text: `Order #${order.created_order_number} created successfully!`,
+        type: "success",
+      });
 
       clearCart();
     } catch (error) {
       console.error("Unexpected waiter order error:", error);
-      setMessage("Something went wrong while placing the order. Please try again.");
+      setMessage({ text: "Something went wrong while placing the order. Please try again.", type: "error" });
     } finally {
       setPlacingOrder(false);
     }
@@ -265,8 +271,16 @@ export default function WaiterPage() {
 
         {/* MESSAGE */}
         {message && (
-          <div className="bg-green-100 border border-green-300 text-green-800 rounded-xl p-4 mb-6">
-            {message}
+          <div
+            role={message.type === "error" ? "alert" : "status"}
+            aria-live={message.type === "error" ? "assertive" : "polite"}
+            className={`rounded-xl border p-4 mb-6 ${
+              message.type === "success"
+                ? "bg-green-100 border-green-300 text-green-800"
+                : "bg-red-100 border-red-300 text-red-800"
+            }`}
+          >
+            {message.text}
           </div>
         )}
 
@@ -299,7 +313,7 @@ export default function WaiterPage() {
                 onClick={() => {
                   setSelectedTable(table);
                   clearCart();
-                  setMessage("");
+                  setMessage(null);
                 }}
                 className={`rounded-2xl p-5 border-2 transition ${
                   selectedTable?.id === table.id
