@@ -37,7 +37,10 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -164,34 +167,49 @@ export default function BillingPage() {
     }
 
     setProcessing(true);
-    setMessage("");
+    setMessage(null);
 
-    const supabase = createClient();
+    let paymentSucceeded = false;
 
-    const { error } = await supabase.rpc(
-      "mark_order_as_paid",
-      {
-        p_order_id: selectedOrder.id,
-        p_payment_method: paymentMethod,
-      }
-    );
+    try {
+      const supabase = createClient();
 
-    if (error) {
-      setMessage(
-        `Payment failed: ${error.message}`
+      const { error: paymentError } = await supabase.rpc(
+        "mark_order_as_paid",
+        {
+          p_order_id: selectedOrder.id,
+          p_payment_method: paymentMethod,
+        }
       );
+
+      if (paymentError) {
+        console.error("Mark order as paid error:", paymentError);
+        setMessage({
+          text: "Payment could not be completed. Please try again.",
+          type: "error",
+        });
+        return;
+      }
+
+      paymentSucceeded = true;
+      setMessage({
+        text: `Order #${selectedOrder.order_number} marked as paid successfully.`,
+        type: "success",
+      });
+      setSelectedOrder(null);
+    } catch (caughtError) {
+      console.error("Unexpected mark order as paid error:", caughtError);
+      setMessage({
+        text: "Payment could not be completed. Please try again.",
+        type: "error",
+      });
+    } finally {
       setProcessing(false);
-      return;
     }
 
-    setMessage(
-      `Order #${selectedOrder.order_number} marked as paid successfully.`
-    );
-
-    setProcessing(false);
-    setSelectedOrder(null);
-
-    await loadOrders();
+    if (paymentSucceeded) {
+      await loadOrders();
+    }
   }
 
   if (loading) {
@@ -221,8 +239,16 @@ export default function BillingPage() {
 
         {/* MESSAGE */}
         {message && (
-          <div className="bg-green-100 border border-green-300 text-green-800 rounded-xl p-4 mb-6">
-            {message}
+          <div
+            role={message.type === "error" ? "alert" : "status"}
+            aria-live={message.type === "error" ? "assertive" : "polite"}
+            className={`rounded-xl p-4 mb-6 border ${
+              message.type === "error"
+                ? "bg-red-100 border-red-300 text-red-800"
+                : "bg-green-100 border-green-300 text-green-800"
+            }`}
+          >
+            {message.text}
           </div>
         )}
 
@@ -392,7 +418,7 @@ export default function BillingPage() {
                       <button
                         onClick={() => {
                           setSelectedOrder(order);
-                          setMessage("");
+                          setMessage(null);
                         }}
                         className="w-full bg-black text-white py-3 rounded-xl font-bold mt-5 hover:bg-gray-800"
                       >
