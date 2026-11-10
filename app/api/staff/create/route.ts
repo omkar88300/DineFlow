@@ -182,11 +182,13 @@ export async function POST(request: Request) {
       });
 
     if (inviteError || !invitedUser.user) {
+      console.error(
+        "Staff invitation failed:",
+        inviteError ?? new Error("Supabase did not return an invited user.")
+      );
+
       return NextResponse.json(
-        {
-          error:
-            inviteError?.message || "Failed to create staff account.",
-        },
+        { error: "Unable to send the staff invitation. Please try again." },
         { status: 500 }
       );
     }
@@ -212,12 +214,30 @@ export async function POST(request: Request) {
      * so we don't leave an orphaned user.
      */
     if (staffError || !staffMember) {
-      await adminSupabase.auth.admin.deleteUser(invitedUser.user.id);
+      console.error(
+        "Staff record creation failed:",
+        staffError ?? new Error("Supabase did not return a staff record.")
+      );
+
+      try {
+        const { error: cleanupError } =
+          await adminSupabase.auth.admin.deleteUser(invitedUser.user.id);
+
+        if (cleanupError) {
+          console.error(
+            "Failed to remove the invited Auth user after staff creation failed:",
+            cleanupError
+          );
+        }
+      } catch (cleanupError) {
+        console.error(
+          "Unexpected error while removing the invited Auth user:",
+          cleanupError
+        );
+      }
 
       return NextResponse.json(
-        {
-          error: staffError?.message || "Failed to create staff record.",
-        },
+        { error: "Unable to create the staff record. Please try again." },
         { status: 500 }
       );
     }
