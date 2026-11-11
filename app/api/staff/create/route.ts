@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { validateStaffPayload } from "@/lib/staff-validation";
 
 export async function POST(request: Request) {
   try {
@@ -16,60 +17,16 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
+    const validation = validateStaffPayload(body);
+
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: "Request body must be a JSON object." },
+        { error: validation.error },
         { status: 400 }
       );
     }
 
-    const payload = body as Record<string, unknown>;
-
-    if (
-      typeof payload.name !== "string" ||
-      typeof payload.email !== "string" ||
-      typeof payload.role !== "string"
-    ) {
-      return NextResponse.json(
-        { error: "Name, email and role are required." },
-        { status: 400 }
-      );
-    }
-
-    const name = payload.name.trim();
-    const email = payload.email.trim().toLowerCase();
-    const role = payload.role;
-
-    if (!name || !email) {
-      return NextResponse.json(
-        { error: "Name and email cannot be empty." },
-        { status: 400 }
-      );
-    }
-
-    if (name.length > 100) {
-      return NextResponse.json(
-        { error: "Name must be 100 characters or fewer." },
-        { status: 400 }
-      );
-    }
-
-    if (
-      email.length > 254 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    ) {
-      return NextResponse.json(
-        { error: "Enter a valid email address." },
-        { status: 400 }
-      );
-    }
-
-    if (!["admin", "waiter", "kitchen", "billing"].includes(role)) {
-      return NextResponse.json(
-        { error: "Invalid staff role." },
-        { status: 400 }
-      );
-    }
+    const { name, email, role } = validation.value;
 
     /*
      * Check the currently logged-in user.
