@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsc --target ES2020 --module commonjs --strict --rootDir lib --outDir .test-build lib/staff-validation.ts && node --test tests/*.test.mjs"
+    "test": "tsc --target ES2020 --module commonjs --strict --rootDir lib --outDir .test-build lib/staff-validation.ts lib/postgrest-patterns.ts && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

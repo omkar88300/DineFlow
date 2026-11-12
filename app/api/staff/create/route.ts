@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { escapePostgrestIlikePattern } from "@/lib/postgrest-patterns";
 import { validateStaffPayload } from "@/lib/staff-validation";
 
 export async function POST(request: Request) {
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       .from("staff")
       .select("id")
       .eq("hotel_id", adminStaff.hotel_id)
-      .ilike("email", email)
+      .ilike("email", escapePostgrestIlikePattern(email))
       .maybeSingle();
 
     if (existingStaffError) {
