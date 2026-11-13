@@ -88,14 +88,24 @@ npm install
 
 ### 4. Configure environment variables
 
-Create a `.env.local` file in the project root and add your Supabase project URL and publishable key. Use the exact variable names below:
+Copy the tracked example file to your local environment file:
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+```bash
+cp .env.example .env.local
 ```
 
-If your local setup requires any additional server-only credentials, configure them separately using the variable names expected by the server code. Never prefix secret keys with `NEXT_PUBLIC_`, and never commit `.env.local` or service-role keys to GitHub.
+Then replace each placeholder with values from your Supabase project and local application setup.
+
+| Variable | Required for | Description |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase clients | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server Supabase clients | Your project's publishable key |
+| `NEXT_PUBLIC_SITE_URL` | Staff invitation redirect | The app's base URL, such as `http://localhost:3000` locally |
+| `SUPABASE_SERVICE_ROLE_KEY` | Staff invitation API | Server-only Supabase service-role key |
+
+**Security:** `SUPABASE_SERVICE_ROLE_KEY` bypasses normal Row Level Security protections. Keep it server-side, never add a `NEXT_PUBLIC_` prefix, and never commit its real value. The committed `.env.example` contains placeholders only. Keep your actual `.env.local` file private.
+
+Set the same required variables in your deployment environment. Update `NEXT_PUBLIC_SITE_URL` to the deployed app's canonical URL before sending staff invitations.
 
 ### 5. Start the development server
 
