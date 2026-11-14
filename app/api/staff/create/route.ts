@@ -3,6 +3,10 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { escapePostgrestIlikePattern } from "@/lib/postgrest-patterns";
+import {
+  getStaffCreationAdminEnvironment,
+  getSupabasePublicEnvironment,
+} from "@/lib/env";
 import { validateStaffPayload } from "@/lib/staff-validation";
 
 export async function POST(request: Request) {
@@ -32,11 +36,12 @@ export async function POST(request: Request) {
     /*
      * Check the currently logged-in user.
      */
+    const publicEnvironment = getSupabasePublicEnvironment(process.env);
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      publicEnvironment.url,
+      publicEnvironment.publishableKey,
       {
         cookies: {
           getAll() {
@@ -93,9 +98,10 @@ export async function POST(request: Request) {
      *
      * This key MUST NEVER be exposed to the browser.
      */
+    const adminEnvironment = getStaffCreationAdminEnvironment(process.env);
     const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      publicEnvironment.url,
+      adminEnvironment.serviceRoleKey
     );
 
     /*
@@ -136,7 +142,7 @@ export async function POST(request: Request) {
      */
     const { data: invitedUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        redirectTo: `${adminEnvironment.siteUrl}/auth/callback`,
       });
 
     if (inviteError || !invitedUser.user) {
