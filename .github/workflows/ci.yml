@@ -24,6 +24,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -37,9 +38,30 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
+        if: ${{ hashFiles('tests/**/*.test.mjs') != '' }}
         run: npm test
 
-      - name: Run ESLint
+      - name: Lint changed files (pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          mapfile -t changed_files < <(
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+              '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs'
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No JavaScript or TypeScript files changed."
+            exit 0
+          fi
+
+          npx eslint "${changed_files[@]}"
+
+      - name: Run full ESLint on main
+        if: github.event_name == 'push'
         run: npm run lint
 
       - name: Build Next.js application
