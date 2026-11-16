@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Tests, lint and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      - name: Run unit tests
+        if: ${{ hashFiles('tests/**/*.test.mjs') != '' }}
+        run: npm test
+
+      - name: Lint changed files (pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          mapfile -t changed_files < <(
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+              '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs'
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No JavaScript or TypeScript files changed."
+            exit 0
+          fi
+
+          npx eslint "${changed_files[@]}"
+
+      - name: Run full ESLint on main
+        if: github.event_name == 'push'
+        run: npm run lint
+
+      - name: Build Next.js application
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm run build
+        env:
+          # Public placeholders are used only for build-time compilation.
+          # CI does not connect to a real Supabase project.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
