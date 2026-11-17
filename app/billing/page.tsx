@@ -51,108 +51,120 @@ export default function BillingPage() {
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    // Get hotel
-    const { data: hotel, error: hotelError } = await supabase
-      .from("hotels")
-      .select("id")
-      .eq("slug", "dineflow-demo")
-      .single();
+      // Get hotel
+      const { data: hotel, error: hotelError } = await supabase
+        .from("hotels")
+        .select("id")
+        .eq("slug", "dineflow-demo")
+        .single();
 
-    if (hotelError || !hotel) {
-      setError("Hotel not found.");
-      setLoading(false);
-      return;
-    }
-
-    // Get served orders
-    const { data: ordersData, error: ordersError } =
-      await supabase
-        .from("orders")
-        .select(`
-          id,
-          order_number,
-          status,
-          subtotal,
-          discount,
-          total,
-          payment_status,
-          payment_method,
-          created_at,
-          restaurant_tables (
-            table_number
-          )
-        `)
-        .eq("hotel_id", hotel.id)
-        .eq("status", "served")
-        .order("created_at", {
-          ascending: false,
-        });
-
-    if (ordersError) {
-      setError(ordersError.message);
-      setLoading(false);
-      return;
-    }
-
-    const formattedOrders: Order[] =
-      (ordersData || []).map((order: { id: string; order_number: number; status: string; subtotal: number | string; discount: number | string; total: number | string; payment_status: string; payment_method: string | null; created_at: string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
-        id: order.id,
-        order_number: order.order_number,
-        status: order.status,
-        subtotal: Number(order.subtotal),
-        discount: Number(order.discount),
-        total: Number(order.total),
-        payment_status: order.payment_status,
-        payment_method: order.payment_method,
-        created_at: order.created_at,
-        table_number:
-          (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
-      }));
-
-    setOrders(formattedOrders);
-
-    // Get order items
-    if (formattedOrders.length > 0) {
-      const orderIds = formattedOrders.map(
-        (order) => order.id
-      );
-
-      const { data: itemsData, error: itemsError } =
-        await supabase
-          .from("order_items")
-          .select(`
-            id,
-            order_id,
-            item_name,
-            quantity,
-            unit_price,
-            total_price
-          `)
-          .in("order_id", orderIds);
-
-      if (itemsError) {
-        setError(itemsError.message);
-        setLoading(false);
+      if (hotelError || !hotel) {
+        console.error("Load billing hotel error:", hotelError);
+        setOrders([]);
+        setOrderItems([]);
+        setError("Unable to load restaurant information. Please try again.");
         return;
       }
 
-      setOrderItems(
-        (itemsData || []).map((item) => ({
-          id: item.id,
-          order_id: item.order_id,
-          item_name: item.item_name,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          total_price: Number(item.total_price),
-        }))
-      );
-    } else {
-      setOrderItems([]);
-    }
+      // Get served orders
+      const { data: ordersData, error: ordersError } =
+        await supabase
+          .from("orders")
+          .select(`
+            id,
+            order_number,
+            status,
+            subtotal,
+            discount,
+            total,
+            payment_status,
+            payment_method,
+            created_at,
+            restaurant_tables (
+              table_number
+            )
+          `)
+          .eq("hotel_id", hotel.id)
+          .eq("status", "served")
+          .order("created_at", {
+            ascending: false,
+          });
 
-    setLoading(false);
+      if (ordersError) {
+        console.error("Load billing orders error:", ordersError);
+        setOrders([]);
+        setOrderItems([]);
+        setError("Unable to load served orders. Please try again.");
+        return;
+      }
+
+      const formattedOrders: Order[] =
+        (ordersData || []).map((order: { id: string; order_number: number; status: string; subtotal: number | string; discount: number | string; total: number | string; payment_status: string; payment_method: string | null; created_at: string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
+          id: order.id,
+          order_number: order.order_number,
+          status: order.status,
+          subtotal: Number(order.subtotal),
+          discount: Number(order.discount),
+          total: Number(order.total),
+          payment_status: order.payment_status,
+          payment_method: order.payment_method,
+          created_at: order.created_at,
+          table_number:
+            (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
+        }));
+
+      setOrders(formattedOrders);
+
+      // Get order items
+      if (formattedOrders.length > 0) {
+        const orderIds = formattedOrders.map(
+          (order) => order.id
+        );
+
+        const { data: itemsData, error: itemsError } =
+          await supabase
+            .from("order_items")
+            .select(`
+              id,
+              order_id,
+              item_name,
+              quantity,
+              unit_price,
+              total_price
+            `)
+            .in("order_id", orderIds);
+
+        if (itemsError) {
+          console.error("Load billing order items error:", itemsError);
+          setOrderItems([]);
+          setError("Unable to load order items. Please try again.");
+          return;
+        }
+
+        setOrderItems(
+          (itemsData || []).map((item) => ({
+            id: item.id,
+            order_id: item.order_id,
+            item_name: item.item_name,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            total_price: Number(item.total_price),
+          }))
+        );
+      } else {
+        setOrderItems([]);
+      }
+    } catch (caughtError) {
+      console.error("Unexpected billing dashboard load error:", caughtError);
+      setOrders([]);
+      setOrderItems([]);
+      setError("Unable to load billing information. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function getItemsForOrder(orderId: string) {
@@ -254,7 +266,11 @@ export default function BillingPage() {
 
         {/* ERROR */}
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-800 rounded-xl p-4 mb-6">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="bg-red-100 border border-red-300 text-red-800 rounded-xl p-4 mb-6"
+          >
             {error}
           </div>
         )}
