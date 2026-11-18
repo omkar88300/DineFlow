@@ -567,13 +567,13 @@ export default function BillingPage() {
             {/* PAYMENT METHOD */}
             <div className="mt-6">
 
-              <label className="font-semibold">
+              <p id="payment-method-label" className="font-semibold">
                 Payment Method
-              </label>
+              </p>
 
               <div
                 role="group"
-                aria-label="Payment method"
+                aria-labelledby="payment-method-label"
                 className="grid grid-cols-3 gap-3 mt-3"
               >
 
