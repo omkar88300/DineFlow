@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 type Order = {
@@ -42,10 +42,64 @@ export default function BillingPage() {
     type: "success" | "error";
   } | null>(null);
   const [error, setError] = useState("");
+  const paymentDialogRef = useRef<HTMLDivElement>(null);
+  const paymentTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+
+    const dialog = paymentDialogRef.current;
+    if (!dialog) return;
+
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const focusableElements = Array.from(
+      dialog.querySelectorAll<HTMLElement>(focusableSelector)
+    );
+    focusableElements[0]?.focus();
+
+    function handleDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelectedOrder(null);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const currentFocusableElements = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector)
+      ).filter((element) => !element.hasAttribute("disabled"));
+
+      if (currentFocusableElements.length === 0) return;
+
+      const first = currentFocusableElements[0];
+      const last = currentFocusableElements[currentFocusableElements.length - 1];
+
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      paymentTriggerRef.current?.focus();
+    };
+  }, [selectedOrder]);
 
   async function loadOrders() {
     setLoading(true);
@@ -165,6 +219,15 @@ export default function BillingPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function openPaymentDialog(order: Order) {
+    paymentTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setSelectedOrder(order);
+    setMessage(null);
   }
 
   function getItemsForOrder(orderId: string) {
@@ -432,10 +495,9 @@ export default function BillingPage() {
                     {/* PAY BUTTON */}
                     {order.payment_status !== "paid" && (
                       <button
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setMessage(null);
-                        }}
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={() => openPaymentDialog(order)}
                         className="w-full bg-black text-white py-3 rounded-xl font-bold mt-5 hover:bg-gray-800"
                       >
                         Generate Bill
@@ -457,12 +519,19 @@ export default function BillingPage() {
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-5 z-50">
 
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+          <div
+            ref={paymentDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-dialog-title"
+            aria-describedby="payment-dialog-description"
+            className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl"
+          >
 
             <div className="flex justify-between items-center">
 
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 id="payment-dialog-title" className="text-2xl font-bold">
                   Payment
                 </h2>
 
@@ -472,6 +541,8 @@ export default function BillingPage() {
               </div>
 
               <button
+                type="button"
+                aria-label="Close payment dialog"
                 onClick={() => setSelectedOrder(null)}
                 className="text-gray-500 text-2xl"
               >
@@ -483,7 +554,7 @@ export default function BillingPage() {
             {/* TOTAL */}
             <div className="bg-gray-100 rounded-2xl p-5 mt-5 text-center">
 
-              <p className="text-gray-500">
+              <p id="payment-dialog-description" className="text-gray-500">
                 Amount to Pay
               </p>
 
@@ -500,9 +571,15 @@ export default function BillingPage() {
                 Payment Method
               </label>
 
-              <div className="grid grid-cols-3 gap-3 mt-3">
+              <div
+                role="group"
+                aria-label="Payment method"
+                className="grid grid-cols-3 gap-3 mt-3"
+              >
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "cash"}
                   onClick={() => setPaymentMethod("cash")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "cash"
@@ -514,6 +591,8 @@ export default function BillingPage() {
                 </button>
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "upi"}
                   onClick={() => setPaymentMethod("upi")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "upi"
@@ -525,6 +604,8 @@ export default function BillingPage() {
                 </button>
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "card"}
                   onClick={() => setPaymentMethod("card")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "card"
@@ -541,6 +622,7 @@ export default function BillingPage() {
 
             {/* CONFIRM */}
             <button
+              type="button"
               onClick={markAsPaid}
               disabled={processing}
               className="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-lg mt-6 hover:bg-green-700 disabled:opacity-50"
