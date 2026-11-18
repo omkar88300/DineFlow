@@ -72,8 +72,11 @@ export default function BillingPage() {
 
       if (event.key !== "Tab") return;
 
+      const activeDialog = paymentDialogRef.current;
+      if (!activeDialog) return;
+
       const currentFocusableElements = Array.from(
-        dialog.querySelectorAll<HTMLElement>(focusableSelector)
+        activeDialog.querySelectorAll<HTMLElement>(focusableSelector)
       ).filter((element) => !element.hasAttribute("disabled"));
 
       if (currentFocusableElements.length === 0) return;
@@ -81,7 +84,7 @@ export default function BillingPage() {
       const first = currentFocusableElements[0];
       const last = currentFocusableElements[currentFocusableElements.length - 1];
 
-      if (!dialog.contains(document.activeElement)) {
+      if (!activeDialog.contains(document.activeElement)) {
         event.preventDefault();
         (event.shiftKey ? last : first).focus();
       } else if (event.shiftKey && document.activeElement === first) {
