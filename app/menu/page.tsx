@@ -569,12 +569,11 @@ export default function MenuPage() {
               <div className="grid md:grid-cols-2 gap-4">
 
                 <div>
-                  <label className="block font-semibold mb-2">
-                    Category Name
-                  </label>
+                  <label htmlFor="new-category-name" className="block font-semibold mb-2">Category Name</label>
 
                   <input
                     type="text"
+                    id="new-category-name"
                     value={newCategory.name}
                     onChange={(e) =>
                       setNewCategory({
@@ -588,13 +587,12 @@ export default function MenuPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-2">
-                    Display Order
-                  </label>
+                  <label htmlFor="new-category-display-order" className="block font-semibold mb-2">Display Order</label>
 
                   <input
                     type="number"
                     min="0"
+                    id="new-category-display-order"
                     value={newCategory.display_order}
                     onChange={(e) =>
                       setNewCategory({
@@ -736,12 +734,11 @@ export default function MenuPage() {
             <div className="grid md:grid-cols-2 gap-5">
 
               <div>
-                <label className="block font-semibold mb-2">
-                  Category Name
-                </label>
+                <label htmlFor="edit-category-name" className="block font-semibold mb-2">Category Name</label>
 
                 <input
                   type="text"
+                  id="edit-category-name"
                   value={editCategory.name}
                   onChange={(e) =>
                     setEditCategory({
@@ -754,13 +751,12 @@ export default function MenuPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-2">
-                  Display Order
-                </label>
+                <label htmlFor="edit-category-display-order" className="block font-semibold mb-2">Display Order</label>
 
                 <input
                   type="number"
                   min="0"
+                  id="edit-category-display-order"
                   value={editCategory.display_order}
                   onChange={(e) =>
                     setEditCategory({
@@ -830,12 +826,11 @@ export default function MenuPage() {
 
             {/* NAME */}
             <div>
-                <label className="block font-semibold mb-2">
-                Item Name
-                </label>
+                <label htmlFor="edit-menu-item-name" className="block font-semibold mb-2">Item Name</label>
 
                 <input
                 type="text"
+                id="edit-menu-item-name"
                 value={editItem.name}
                 onChange={(e) =>
                     setEditItem({
@@ -849,13 +844,12 @@ export default function MenuPage() {
 
             {/* PRICE */}
             <div>
-                <label className="block font-semibold mb-2">
-                Price
-                </label>
+                <label htmlFor="edit-menu-item-price" className="block font-semibold mb-2">Price</label>
 
                 <input
                 type="number"
                 min="1"
+                id="edit-menu-item-price"
                 value={editItem.price}
                 onChange={(e) =>
                     setEditItem({
@@ -869,11 +863,10 @@ export default function MenuPage() {
 
             {/* CATEGORY */}
             <div>
-                <label className="block font-semibold mb-2">
-                Category
-                </label>
+                <label htmlFor="edit-menu-item-category" className="block font-semibold mb-2">Category</label>
 
                 <select
+                id="edit-menu-item-category"
                 value={editItem.category_id}
                 onChange={(e) =>
                     setEditItem({
@@ -902,12 +895,11 @@ export default function MenuPage() {
 
             {/* DESCRIPTION */}
             <div>
-                <label className="block font-semibold mb-2">
-                Description
-                </label>
+                <label htmlFor="edit-menu-item-description" className="block font-semibold mb-2">Description</label>
 
                 <input
                 type="text"
+                id="edit-menu-item-description"
                 value={editItem.description}
                 onChange={(e) =>
                     setEditItem({
@@ -982,12 +974,11 @@ export default function MenuPage() {
 
                 {/* NAME */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Item Name
-                    </label>
+                    <label htmlFor="new-menu-item-name" className="block font-semibold mb-2">Item Name</label>
 
                     <input
                     type="text"
+                    id="new-menu-item-name"
                     value={newItem.name}
                     onChange={(e) =>
                         setNewItem({
@@ -1002,13 +993,12 @@ export default function MenuPage() {
 
                 {/* PRICE */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Price
-                    </label>
+                    <label htmlFor="new-menu-item-price" className="block font-semibold mb-2">Price</label>
 
                     <input
                     type="number"
                     min="1"
+                    id="new-menu-item-price"
                     value={newItem.price}
                     onChange={(e) =>
                         setNewItem({
@@ -1023,11 +1013,10 @@ export default function MenuPage() {
 
                 {/* CATEGORY */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Category
-                    </label>
+                    <label htmlFor="new-menu-item-category" className="block font-semibold mb-2">Category</label>
 
                     <select
+                    id="new-menu-item-category"
                     value={newItem.category_id}
                     onChange={(e) =>
                         setNewItem({
@@ -1056,12 +1045,11 @@ export default function MenuPage() {
 
                 {/* DESCRIPTION */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Description
-                    </label>
+                    <label htmlFor="new-menu-item-description" className="block font-semibold mb-2">Description</label>
 
                     <input
                     type="text"
+                    id="new-menu-item-description"
                     value={newItem.description}
                     onChange={(e) =>
                         setNewItem({
