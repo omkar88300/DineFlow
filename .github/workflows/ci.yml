@@ -56,7 +56,7 @@ jobs:
               "npm audit did not return valid JSON. Check this step's logs for registry or network errors.";
             fs.appendFileSync(
               process.env.GITHUB_STEP_SUMMARY,
-              \`## Dependency audit\n\n\${message}\n\`
+              "## Dependency audit\n\n" + message + "\n"
             );
             console.warn(message);
             process.exit(0);
@@ -68,10 +68,10 @@ jobs:
             "",
             "| Severity | Findings |",
             "|---|---:|",
-            \`| Critical | \${counts.critical ?? 0} |\`,
-            \`| High | \${counts.high ?? 0} |\`,
-            \`| Moderate | \${counts.moderate ?? 0} |\`,
-            \`| Low | \${counts.low ?? 0} |\`,
+            "| Critical | " + (counts.critical ?? 0) + " |",
+            "| High | " + (counts.high ?? 0) + " |",
+            "| Moderate | " + (counts.moderate ?? 0) + " |",
+            "| Low | " + (counts.low ?? 0) + " |",
           ];
 
           const findings = Object.entries(report.vulnerabilities ?? {});
@@ -86,7 +86,10 @@ jobs:
                     ? "yes"
                     : "not reported";
               lines.push(
-                \`- **\${name}** — \${detail.severity}, \${directness}; affected range: \${detail.range ?? "not reported"}; fix available: \${fixAvailable}.\`
+                "- **" + name + "** — " + detail.severity +
+                ", " + directness +
+                "; affected range: " + (detail.range ?? "not reported") +
+                "; fix available: " + fixAvailable + "."
               );
             }
           } else {
@@ -94,7 +97,7 @@ jobs:
           }
 
           if (report.error?.summary) {
-            lines.push("", \`Audit error: \${report.error.summary}\`);
+            lines.push("", "Audit error: " + report.error.summary);
           }
 
           lines.push(
@@ -127,12 +130,12 @@ jobs:
               '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs'
           )
 
-          if [ "\${#changed_files[@]}" -eq 0 ]; then
+          if [ "${#changed_files[@]}" -eq 0 ]; then
             echo "No JavaScript or TypeScript files changed."
             exit 0
           fi
 
-          npx eslint "\${changed_files[@]}"
+          npx eslint "${changed_files[@]}"
 
       - name: Run full ESLint on main
         if: github.event_name == 'push'
