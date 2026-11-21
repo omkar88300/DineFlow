@@ -75,7 +75,9 @@ jobs:
           ];
 
           const findings = Object.entries(report.vulnerabilities ?? {});
-          if (findings.length > 0) {
+          if (report.error?.summary) {
+            lines.push("", "Audit could not complete: " + report.error.summary);
+          } else if (findings.length > 0) {
             lines.push("", "### Affected packages", "");
             for (const [name, detail] of findings) {
               const directness = detail.isDirect ? "direct" : "transitive";
@@ -92,12 +94,10 @@ jobs:
                 "; fix available: " + fixAvailable + "."
               );
             }
-          } else {
+          } else if (report.metadata?.vulnerabilities) {
             lines.push("", "No dependency vulnerabilities were reported.");
-          }
-
-          if (report.error?.summary) {
-            lines.push("", "Audit error: " + report.error.summary);
+          } else {
+            lines.push("", "npm audit returned no vulnerability metadata.");
           }
 
           lines.push(
