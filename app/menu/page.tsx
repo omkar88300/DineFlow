@@ -57,6 +57,32 @@ export default function MenuPage() {
         price: "",
         category_id: "",
         });
+  async function runMenuMutation(
+    action: string,
+    operation: () => Promise<{ error: unknown | null }>,
+    fallbackMessage: string
+  ): Promise<boolean> {
+    try {
+      const { error: actionError } = await operation();
+
+      if (actionError) {
+        console.error("Menu management " + action + " failed:", actionError);
+        setError(fallbackMessage);
+        return false;
+      }
+
+      setError("");
+      return true;
+    } catch (caughtError) {
+      console.error(
+        "Unexpected menu management " + action + " error:",
+        caughtError
+      );
+      setError(fallbackMessage);
+      return false;
+    }
+  }
+
   useEffect(() => {
     loadMenu();
   }, []);
@@ -65,67 +91,75 @@ export default function MenuPage() {
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    // Get hotel
-    const { data: hotel, error: hotelError } =
-      await supabase
+      const { data: hotel, error: hotelError } = await supabase
         .from("hotels")
         .select("id, name")
         .eq("slug", "dineflow-demo")
         .single();
 
-    if (hotelError || !hotel) {
-      setError("Hotel not found.");
-      setLoading(false);
-      return;
-    }
+      if (hotelError || !hotel) {
+        console.error(
+          "Load menu restaurant error:",
+          hotelError ?? new Error("Restaurant not found.")
+        );
+        setCategories([]);
+        setMenuItems([]);
+        setError("Unable to load restaurant information. Please try again.");
+        return;
+      }
 
-    // Get categories
-    const { data: categoryData, error: categoryError } =
-      await supabase
+      const { data: categoryData, error: categoryError } = await supabase
         .from("menu_categories")
         .select("id, name, is_active")
         .eq("hotel_id", hotel.id)
         .order("name");
 
-    if (categoryError) {
-      setError(categoryError.message);
-      setLoading(false);
-      return;
-    }
+      if (categoryError) {
+        console.error("Load menu categories error:", categoryError);
+        setCategories([]);
+        setMenuItems([]);
+        setError("Unable to load menu categories. Please try again.");
+        return;
+      }
 
-    // Get menu items
-    const { data: itemData, error: itemError } =
-      await supabase
+      const { data: itemData, error: itemError } = await supabase
         .from("menu_items")
-        .select(
-          "id, name, description, price, category_id, is_available"
-        )
+        .select("id, name, description, price, category_id, is_available")
         .eq("hotel_id", hotel.id)
         .order("name");
 
-    if (itemError) {
-      setError(itemError.message);
+      if (itemError) {
+        console.error("Load menu items error:", itemError);
+        setCategories([]);
+        setMenuItems([]);
+        setError("Unable to load menu items. Please try again.");
+        return;
+      }
+
+      setCategories(categoryData || []);
+      setMenuItems(
+        (itemData || []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          price: Number(item.price),
+          category_id: item.category_id,
+          is_available: item.is_available,
+        }))
+      );
+    } catch (caughtError) {
+      console.error("Unexpected menu loading error:", caughtError);
+      setCategories([]);
+      setMenuItems([]);
+      setError("Unable to load menu. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setCategories(categoryData || []);
-
-    setMenuItems(
-      (itemData || []).map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        price: Number(item.price),
-        category_id: item.category_id,
-        is_available: item.is_available,
-      }))
-    );
-
-    setLoading(false);
   }
+
 
   const filteredItems =
     selectedCategory === "all"
@@ -148,290 +182,242 @@ export default function MenuPage() {
       return;
     }
 
-    const supabase = createClient();
-
-    const { error: createError } = await supabase.rpc(
-      "create_menu_category",
-      {
-        p_name: newCategory.name.trim(),
-        p_display_order: Number(newCategory.display_order) || 0,
-      }
+    const succeeded = await runMenuMutation(
+      "create category",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("create_menu_category", {
+          p_name: newCategory.name.trim(),
+          p_display_order: Number(newCategory.display_order) || 0,
+        });
+      },
+      "Unable to create category. Please try again."
     );
 
-    if (createError) {
-      setError(createError.message);
-      return;
-    }
+    if (!succeeded) return;
 
-    setNewCategory({
-      name: "",
-      display_order: "0",
-    });
-
+    setNewCategory({ name: "", display_order: "0" });
     setShowCategoryForm(false);
-    setError("");
-
     await loadMenu();
   }
 
   async function updateCategory() {
-    if (!editingCategory) {
-      return;
-    }
+    if (!editingCategory) return;
 
     if (!editCategory.name.trim()) {
       setError("Please enter a category name.");
       return;
     }
 
-    const supabase = createClient();
-
-    const { error: updateError } = await supabase.rpc(
-      "update_menu_category",
-      {
-        p_category_id: editingCategory.id,
-        p_name: editCategory.name.trim(),
-        p_display_order:
-          Number(editCategory.display_order) || 0,
-      }
+    const succeeded = await runMenuMutation(
+      "update category",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("update_menu_category", {
+          p_category_id: editingCategory.id,
+          p_name: editCategory.name.trim(),
+          p_display_order: Number(editCategory.display_order) || 0,
+        });
+      },
+      "Unable to update category. Please try again."
     );
 
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
+    if (!succeeded) return;
 
     setEditingCategory(null);
-
-    setEditCategory({
-      name: "",
-      display_order: "0",
-    });
-
-    setError("");
-
+    setEditCategory({ name: "", display_order: "0" });
     await loadMenu();
   }
 
   async function toggleCategoryStatus(category: Category) {
-    const supabase = createClient();
-
-    const { error: toggleError } = await supabase.rpc(
-      "toggle_menu_category_status",
-      {
-        p_category_id: category.id,
-      }
+    const succeeded = await runMenuMutation(
+      "toggle category status",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("toggle_menu_category_status", {
+          p_category_id: category.id,
+        });
+      },
+      "Unable to update category status. Please try again."
     );
 
-    if (toggleError) {
-      setError(toggleError.message);
-      return;
-    }
-
-    setError("");
+    if (!succeeded) return;
 
     await loadMenu();
   }
 
   async function deleteCategory(category: Category) {
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${category.name}"?`
+      "Are you sure you want to delete \"" + category.name + "\"?"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
-    const supabase = createClient();
-
-    const { error: deleteError } = await supabase.rpc(
-      "delete_menu_category",
-      {
-        p_category_id: category.id,
-      }
+    const succeeded = await runMenuMutation(
+      "delete category",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("delete_menu_category", {
+          p_category_id: category.id,
+        });
+      },
+      "Unable to delete category. Please try again."
     );
 
-    if (deleteError) {
-      setError(deleteError.message);
-      return;
-    }
+    if (!succeeded) return;
 
     if (selectedCategory === category.id) {
       setSelectedCategory("all");
     }
 
-    setError("");
-
     await loadMenu();
   }
 
-
-
   async function addMenuItem() {
     if (!newItem.name.trim()) {
-        setError("Please enter an item name.");
-        return;
+      setError("Please enter an item name.");
+      return;
     }
 
     if (!newItem.price || Number(newItem.price) <= 0) {
-        setError("Please enter a valid price.");
-        return;
+      setError("Please enter a valid price.");
+      return;
     }
 
     if (!newItem.category_id) {
-        setError("Please select a category.");
-        return;
+      setError("Please select a category.");
+      return;
     }
 
-    const supabase = createClient();
-
-    // Get hotel
-    const { data: hotel, error: hotelError } =
-        await supabase
+    try {
+      const supabase = createClient();
+      const { data: hotel, error: hotelError } = await supabase
         .from("hotels")
         .select("id")
         .eq("slug", "dineflow-demo")
         .single();
 
-    if (hotelError || !hotel) {
-        setError("Hotel not found.");
+      if (hotelError || !hotel) {
+        console.error(
+          "Verify restaurant before adding menu item:",
+          hotelError ?? new Error("Restaurant not found.")
+        );
+        setError("Unable to verify restaurant information. Please try again.");
         return;
-    }
-
-    // Insert menu item
-    const { error: insertError } = await supabase.rpc(
-      "create_menu_item",
-      {
-        p_category_id: newItem.category_id,
-        p_name: newItem.name.trim(),
-        p_description: newItem.description.trim(),
-        p_price: Number(newItem.price),
       }
-    );
 
-    if (insertError) {
-        setError(insertError.message);
-        return;
-    }
+      const succeeded = await runMenuMutation(
+        "add menu item",
+        async () =>
+          await supabase.rpc("create_menu_item", {
+            p_category_id: newItem.category_id,
+            p_name: newItem.name.trim(),
+            p_description: newItem.description.trim(),
+            p_price: Number(newItem.price),
+          }),
+        "Unable to add menu item. Please try again."
+      );
 
-    // Reset form
-    setNewItem({
+      if (!succeeded) return;
+
+      setNewItem({
         name: "",
         description: "",
         price: "",
         category_id: "",
-    });
-
-    setShowAddForm(false);
-
-    // Reload menu
-    await loadMenu();
+      });
+      setShowAddForm(false);
+      await loadMenu();
+    } catch (caughtError) {
+      console.error("Unexpected add menu item error:", caughtError);
+      setError("Unable to add menu item. Please try again.");
     }
-    async function updateMenuItem() {
-    if (!editingItem) {
-        return;
-    }
+  }
+
+  async function updateMenuItem() {
+    if (!editingItem) return;
 
     if (!editItem.name.trim()) {
-        setError("Please enter an item name.");
-        return;
+      setError("Please enter an item name.");
+      return;
     }
 
     if (!editItem.price || Number(editItem.price) <= 0) {
-        setError("Please enter a valid price.");
-        return;
+      setError("Please enter a valid price.");
+      return;
     }
 
     if (!editItem.category_id) {
-        setError("Please select a category.");
-        return;
+      setError("Please select a category.");
+      return;
     }
 
-    const supabase = createClient();
-
-    const { error: updateError } = await supabase.rpc(
-      "update_menu_item",
-      {
-        p_item_id: editingItem.id,
-        p_name: editItem.name.trim(),
-        p_description: editItem.description.trim(),
-        p_price: Number(editItem.price),
-        p_category_id: editItem.category_id,
-      }
+    const succeeded = await runMenuMutation(
+      "update menu item",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("update_menu_item", {
+          p_item_id: editingItem.id,
+          p_name: editItem.name.trim(),
+          p_description: editItem.description.trim(),
+          p_price: Number(editItem.price),
+          p_category_id: editItem.category_id,
+        });
+      },
+      "Unable to update menu item. Please try again."
     );
 
-    if (updateError) {
-        setError(updateError.message);
-        return;
-    }
+    if (!succeeded) return;
 
     setEditingItem(null);
-
     setEditItem({
-        name: "",
-        description: "",
-        price: "",
-        category_id: "",
+      name: "",
+      description: "",
+      price: "",
+      category_id: "",
     });
-
-    setError("");
-
     await loadMenu();
-    }
-    
-    async function toggleAvailability(item: MenuItem) {
-    const supabase = createClient();
+  }
 
-    console.log("Toggling item:", item.id, item.name);
-    console.log("Current availability:", item.is_available);
-
-    const { error } = await supabase.rpc(
-      "toggle_menu_item_availability",
-      {
-        p_item_id: item.id,
-      }
+  async function toggleAvailability(item: MenuItem) {
+    const succeeded = await runMenuMutation(
+      "toggle menu item availability",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("toggle_menu_item_availability", {
+          p_item_id: item.id,
+        });
+      },
+      "Unable to update menu item availability. Please try again."
     );
 
-
-    console.log("Update error:", error);
-
-    if (error) {
-        setError(`Failed to update: ${error.message}`);
-        return;
-    }
-
-    setError("");
+    if (!succeeded) return;
 
     await loadMenu();
-    }
+  }
 
-    async function deleteMenuItem(item: MenuItem) {
+  async function deleteMenuItem(item: MenuItem) {
     const confirmed = window.confirm(
-        `Are you sure you want to delete "${item.name}"?`
+      "Are you sure you want to delete \"" + item.name + "\"?"
     );
 
-    if (!confirmed) {
-        return;
-    }
+    if (!confirmed) return;
 
-    const supabase = createClient();
-
-    const { error: deleteError } = await supabase.rpc(
-      "delete_menu_item",
-      {
-        p_item_id: item.id,
-      }
+    const succeeded = await runMenuMutation(
+      "delete menu item",
+      async () => {
+        const supabase = createClient();
+        return await supabase.rpc("delete_menu_item", {
+          p_item_id: item.id,
+        });
+      },
+      "Unable to delete menu item. Please try again."
     );
 
-    if (deleteError) {
-        setError(`Failed to delete item: ${deleteError.message}`);
-        return;
-    }
-
-    setError("");
+    if (!succeeded) return;
 
     await loadMenu();
-    }
+  }
 
   if (loading) {
     return (
@@ -478,7 +464,11 @@ export default function MenuPage() {
 
         {/* ERROR */}
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-700 rounded-xl p-4 mb-6">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="bg-red-100 border border-red-300 text-red-700 rounded-xl p-4 mb-6"
+          >
             {error}
           </div>
         )}
@@ -579,12 +569,11 @@ export default function MenuPage() {
               <div className="grid md:grid-cols-2 gap-4">
 
                 <div>
-                  <label className="block font-semibold mb-2">
-                    Category Name
-                  </label>
+                  <label htmlFor="new-category-name" className="block font-semibold mb-2">Category Name</label>
 
                   <input
                     type="text"
+                    id="new-category-name"
                     value={newCategory.name}
                     onChange={(e) =>
                       setNewCategory({
@@ -598,13 +587,12 @@ export default function MenuPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-2">
-                    Display Order
-                  </label>
+                  <label htmlFor="new-category-display-order" className="block font-semibold mb-2">Display Order</label>
 
                   <input
                     type="number"
                     min="0"
+                    id="new-category-display-order"
                     value={newCategory.display_order}
                     onChange={(e) =>
                       setNewCategory({
@@ -746,12 +734,11 @@ export default function MenuPage() {
             <div className="grid md:grid-cols-2 gap-5">
 
               <div>
-                <label className="block font-semibold mb-2">
-                  Category Name
-                </label>
+                <label htmlFor="edit-category-name" className="block font-semibold mb-2">Category Name</label>
 
                 <input
                   type="text"
+                  id="edit-category-name"
                   value={editCategory.name}
                   onChange={(e) =>
                     setEditCategory({
@@ -764,13 +751,12 @@ export default function MenuPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-2">
-                  Display Order
-                </label>
+                <label htmlFor="edit-category-display-order" className="block font-semibold mb-2">Display Order</label>
 
                 <input
                   type="number"
                   min="0"
+                  id="edit-category-display-order"
                   value={editCategory.display_order}
                   onChange={(e) =>
                     setEditCategory({
@@ -840,12 +826,11 @@ export default function MenuPage() {
 
             {/* NAME */}
             <div>
-                <label className="block font-semibold mb-2">
-                Item Name
-                </label>
+                <label htmlFor="edit-menu-item-name" className="block font-semibold mb-2">Item Name</label>
 
                 <input
                 type="text"
+                id="edit-menu-item-name"
                 value={editItem.name}
                 onChange={(e) =>
                     setEditItem({
@@ -859,13 +844,12 @@ export default function MenuPage() {
 
             {/* PRICE */}
             <div>
-                <label className="block font-semibold mb-2">
-                Price
-                </label>
+                <label htmlFor="edit-menu-item-price" className="block font-semibold mb-2">Price</label>
 
                 <input
                 type="number"
                 min="1"
+                id="edit-menu-item-price"
                 value={editItem.price}
                 onChange={(e) =>
                     setEditItem({
@@ -879,11 +863,10 @@ export default function MenuPage() {
 
             {/* CATEGORY */}
             <div>
-                <label className="block font-semibold mb-2">
-                Category
-                </label>
+                <label htmlFor="edit-menu-item-category" className="block font-semibold mb-2">Category</label>
 
                 <select
+                id="edit-menu-item-category"
                 value={editItem.category_id}
                 onChange={(e) =>
                     setEditItem({
@@ -912,12 +895,11 @@ export default function MenuPage() {
 
             {/* DESCRIPTION */}
             <div>
-                <label className="block font-semibold mb-2">
-                Description
-                </label>
+                <label htmlFor="edit-menu-item-description" className="block font-semibold mb-2">Description</label>
 
                 <input
                 type="text"
+                id="edit-menu-item-description"
                 value={editItem.description}
                 onChange={(e) =>
                     setEditItem({
@@ -992,12 +974,11 @@ export default function MenuPage() {
 
                 {/* NAME */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Item Name
-                    </label>
+                    <label htmlFor="new-menu-item-name" className="block font-semibold mb-2">Item Name</label>
 
                     <input
                     type="text"
+                    id="new-menu-item-name"
                     value={newItem.name}
                     onChange={(e) =>
                         setNewItem({
@@ -1012,13 +993,12 @@ export default function MenuPage() {
 
                 {/* PRICE */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Price
-                    </label>
+                    <label htmlFor="new-menu-item-price" className="block font-semibold mb-2">Price</label>
 
                     <input
                     type="number"
                     min="1"
+                    id="new-menu-item-price"
                     value={newItem.price}
                     onChange={(e) =>
                         setNewItem({
@@ -1033,11 +1013,10 @@ export default function MenuPage() {
 
                 {/* CATEGORY */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Category
-                    </label>
+                    <label htmlFor="new-menu-item-category" className="block font-semibold mb-2">Category</label>
 
                     <select
+                    id="new-menu-item-category"
                     value={newItem.category_id}
                     onChange={(e) =>
                         setNewItem({
@@ -1066,12 +1045,11 @@ export default function MenuPage() {
 
                 {/* DESCRIPTION */}
                 <div>
-                    <label className="block font-semibold mb-2">
-                    Description
-                    </label>
+                    <label htmlFor="new-menu-item-description" className="block font-semibold mb-2">Description</label>
 
                     <input
                     type="text"
+                    id="new-menu-item-description"
                     value={newItem.description}
                     onChange={(e) =>
                         setNewItem({

@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Tests, lint and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      - name: Summarize dependency audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > npm-audit.json
+          audit_exit_code=$?
+          set -e
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync("npm-audit.json", "utf8"));
+          } catch {
+            const message =
+              "npm audit did not return valid JSON. Check this step's logs for registry or network errors.";
+            fs.appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              "## Dependency audit\n\n" + message + "\n"
+            );
+            console.warn(message);
+            process.exit(0);
+          }
+
+          const counts = report.metadata?.vulnerabilities ?? {};
+          const lines = [
+            "## Dependency audit",
+            "",
+            "| Severity | Findings |",
+            "|---|---:|",
+            "| Critical | " + (counts.critical ?? 0) + " |",
+            "| High | " + (counts.high ?? 0) + " |",
+            "| Moderate | " + (counts.moderate ?? 0) + " |",
+            "| Low | " + (counts.low ?? 0) + " |",
+          ];
+
+          const findings = Object.entries(report.vulnerabilities ?? {});
+          if (report.error?.summary) {
+            lines.push("", "Audit could not complete: " + report.error.summary);
+          } else if (findings.length > 0) {
+            lines.push("", "### Affected packages", "");
+            for (const [name, detail] of findings) {
+              const directness = detail.isDirect ? "direct" : "transitive";
+              const fixAvailable =
+                detail.fixAvailable === false
+                  ? "no"
+                  : detail.fixAvailable
+                    ? "yes"
+                    : "not reported";
+              lines.push(
+                "- **" + name + "** — " + detail.severity +
+                ", " + directness +
+                "; affected range: " + (detail.range ?? "not reported") +
+                "; fix available: " + fixAvailable + "."
+              );
+            }
+          } else if (report.metadata?.vulnerabilities) {
+            lines.push("", "No dependency vulnerabilities were reported.");
+          } else {
+            lines.push("", "npm audit returned no vulnerability metadata.");
+          }
+
+          lines.push(
+            "",
+            "This report is informational and does not block the build. Review advisory details and compatibility before changing dependency versions."
+          );
+
+          const summary = lines.join("\n") + "\n";
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          console.log(summary);
+          NODE
+
+          if [ "$audit_exit_code" -ne 0 ]; then
+            echo "::warning::npm audit reported vulnerabilities or could not complete. Review the dependency audit summary."
+          fi
+
+      - name: Run unit tests
+        if: ${{ hashFiles('tests/**/*.test.mjs') != '' }}
+        run: npm test
+
+      - name: Lint changed files (pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          mapfile -t changed_files < <(
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+              '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs'
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No JavaScript or TypeScript files changed."
+            exit 0
+          fi
+
+          npx eslint "${changed_files[@]}"
+
+      - name: Run full ESLint on main
+        if: github.event_name == 'push'
+        run: npm run lint
+
+      - name: Build Next.js application
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm run build
+        env:
+          # Public placeholders are used only for build-time compilation.
+          # CI does not connect to a real Supabase project.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
