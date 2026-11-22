@@ -66,7 +66,7 @@ export function summarizeAuditJson(jsonText) {
           : detail.fixAvailable
             ? "yes"
             : "not reported";
-      const affectedRange = String(detail.range ?? "not reported").replace(/[\\r\\n|]/g, " ");
+      const affectedRange = String(detail.range ?? "not reported").replace(/[\r\n|]/g, " ");
 
       lines.push(
         `- **${name}** — ${detail.severity ?? "unknown"}, ${directness}; ` +
