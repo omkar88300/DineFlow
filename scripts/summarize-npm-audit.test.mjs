@@ -37,10 +37,10 @@ describe("summarizeAuditJson", () => {
       })
     );
 
-    assert.match(summary, /\\| Critical \\| 1 \\|/);
-    assert.match(summary, /\\*\\*next\\*\\* — critical, direct/);
+    assert.match(summary, /\| Critical \| 1 \|/);
+    assert.match(summary, /\*\*next\*\* — critical, direct/);
     assert.match(summary, /fix available: yes/);
-    assert.match(summary, /\\*\\*minimatch\\*\\* — moderate, transitive/);
+    assert.match(summary, /\*\*minimatch\*\* — moderate, transitive/);
     assert.match(summary, /fix available: no/);
     assert.match(summary, /Vulnerability findings are informational/);
   });
