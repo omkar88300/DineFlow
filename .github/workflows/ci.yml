@@ -37,6 +37,9 @@ jobs:
         id: install
         run: npm ci
 
+      - name: Test dependency audit summary
+        run: node --test scripts/summarize-npm-audit.test.mjs
+
       - name: Summarize dependency audit
         shell: bash
         run: |
@@ -45,73 +48,10 @@ jobs:
           audit_exit_code=$?
           set -e
 
-          node <<'NODE'
-          const fs = require("node:fs");
-
-          let report;
-          try {
-            report = JSON.parse(fs.readFileSync("npm-audit.json", "utf8"));
-          } catch {
-            const message =
-              "npm audit did not return valid JSON. Check this step's logs for registry or network errors.";
-            fs.appendFileSync(
-              process.env.GITHUB_STEP_SUMMARY,
-              "## Dependency audit\n\n" + message + "\n"
-            );
-            console.warn(message);
-            process.exit(0);
-          }
-
-          const counts = report.metadata?.vulnerabilities ?? {};
-          const lines = [
-            "## Dependency audit",
-            "",
-            "| Severity | Findings |",
-            "|---|---:|",
-            "| Critical | " + (counts.critical ?? 0) + " |",
-            "| High | " + (counts.high ?? 0) + " |",
-            "| Moderate | " + (counts.moderate ?? 0) + " |",
-            "| Low | " + (counts.low ?? 0) + " |",
-          ];
-
-          const findings = Object.entries(report.vulnerabilities ?? {});
-          if (report.error?.summary) {
-            lines.push("", "Audit could not complete: " + report.error.summary);
-          } else if (findings.length > 0) {
-            lines.push("", "### Affected packages", "");
-            for (const [name, detail] of findings) {
-              const directness = detail.isDirect ? "direct" : "transitive";
-              const fixAvailable =
-                detail.fixAvailable === false
-                  ? "no"
-                  : detail.fixAvailable
-                    ? "yes"
-                    : "not reported";
-              lines.push(
-                "- **" + name + "** — " + detail.severity +
-                ", " + directness +
-                "; affected range: " + (detail.range ?? "not reported") +
-                "; fix available: " + fixAvailable + "."
-              );
-            }
-          } else if (report.metadata?.vulnerabilities) {
-            lines.push("", "No dependency vulnerabilities were reported.");
-          } else {
-            lines.push("", "npm audit returned no vulnerability metadata.");
-          }
-
-          lines.push(
-            "",
-            "This report is informational and does not block the build. Review advisory details and compatibility before changing dependency versions."
-          );
-
-          const summary = lines.join("\n") + "\n";
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-          console.log(summary);
-          NODE
+          node scripts/summarize-npm-audit.mjs npm-audit.json
 
           if [ "$audit_exit_code" -ne 0 ]; then
-            echo "::warning::npm audit reported vulnerabilities or could not complete. Review the dependency audit summary."
+            echo "::warning::npm audit reported dependency vulnerabilities. Review the job summary."
           fi
 
       - name: Run unit tests
