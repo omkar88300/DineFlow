@@ -3,15 +3,14 @@ import { describe, it } from "node:test";
 
 import { summarizeAuditJson } from "./summarize-npm-audit.mjs";
 
-describe("summarizeAuditJson", () => {
-  it("reports a clean audit", () => {
-    const summary = summarizeAuditJson(
-      JSON.stringify({
-        metadata: { vulnerabilities: { critical: 0, high: 0, moderate: 0, low: 0 } },
-        vulnerabilities: {},
-      })
-    );
+const cleanReport = () => ({
+  metadata: { vulnerabilities: { critical: 0, high: 0, moderate: 0, low: 0 } },
+  vulnerabilities: {},
+});
 
+describe("summarizeAuditJson", () => {
+  it("reports a clean audit only when all severity counts are present and zero", () => {
+    const summary = summarizeAuditJson(JSON.stringify(cleanReport()));
     assert.match(summary, /No dependency vulnerabilities were reported/);
     assert.match(summary, /unavailable or invalid audit report does fail the job/);
   });
@@ -71,6 +70,51 @@ describe("summarizeAuditJson", () => {
     );
   });
 
+  it("rejects missing severity counts instead of defaulting them to zero", () => {
+    const report = cleanReport();
+    delete report.metadata.vulnerabilities.high;
+    assert.throws(
+      () => summarizeAuditJson(JSON.stringify(report)),
+      /invalid high vulnerability count/
+    );
+  });
+
+  it("rejects negative severity counts", () => {
+    const report = cleanReport();
+    report.metadata.vulnerabilities.critical = -1;
+    assert.throws(
+      () => summarizeAuditJson(JSON.stringify(report)),
+      /invalid critical vulnerability count/
+    );
+  });
+
+  it("rejects non-integer severity counts", () => {
+    const report = cleanReport();
+    report.metadata.vulnerabilities.moderate = "2";
+    assert.throws(
+      () => summarizeAuditJson(JSON.stringify(report)),
+      /invalid moderate vulnerability count/
+    );
+  });
+
+  it("rejects reports without package vulnerability details", () => {
+    const report = cleanReport();
+    delete report.vulnerabilities;
+    assert.throws(
+      () => summarizeAuditJson(JSON.stringify(report)),
+      /missing package vulnerability details/
+    );
+  });
+
+  it("rejects nonzero vulnerability counts with no package details", () => {
+    const report = cleanReport();
+    report.metadata.vulnerabilities.critical = 1;
+    assert.throws(
+      () => summarizeAuditJson(JSON.stringify(report)),
+      /reported vulnerability counts but omitted package details/
+    );
+  });
+
   it("rejects malformed JSON", () => {
     assert.throws(
       () => summarizeAuditJson("{not valid json"),
@@ -83,7 +127,7 @@ describe("summarizeAuditJson", () => {
       () =>
         summarizeAuditJson(
           JSON.stringify({
-            metadata: { vulnerabilities: { critical: 1 } },
+            metadata: { vulnerabilities: { critical: 1, high: 0, moderate: 0, low: 0 } },
             vulnerabilities: { next: null },
           })
         ),

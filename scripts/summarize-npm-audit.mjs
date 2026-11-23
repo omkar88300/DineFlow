@@ -32,12 +32,34 @@ export function summarizeAuditJson(jsonText) {
     throw new Error("npm audit report is missing vulnerability metadata.");
   }
 
-  const vulnerabilities = report.vulnerabilities ?? {};
+  const severityCounts = {};
+  for (const severity of SEVERITIES) {
+    const count = counts[severity];
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error(
+        `npm audit report contains an invalid ${severity} vulnerability count.`
+      );
+    }
+    severityCounts[severity] = count;
+  }
+
   if (
-    typeof vulnerabilities !== "object" ||
-    Array.isArray(vulnerabilities)
+    !Object.hasOwn(report, "vulnerabilities") ||
+    !report.vulnerabilities ||
+    typeof report.vulnerabilities !== "object" ||
+    Array.isArray(report.vulnerabilities)
   ) {
-    throw new Error("npm audit report contains invalid package details.");
+    throw new Error("npm audit report is missing package vulnerability details.");
+  }
+
+  const vulnerabilities = report.vulnerabilities;
+  const hasReportedFindings = Object.values(severityCounts).some(
+    (count) => count > 0
+  );
+  if (hasReportedFindings && Object.keys(vulnerabilities).length === 0) {
+    throw new Error(
+      "npm audit reported vulnerability counts but omitted package details."
+    );
   }
 
   const lines = [
@@ -46,7 +68,7 @@ export function summarizeAuditJson(jsonText) {
     "| Severity | Findings |",
     "|---|---:|",
     ...SEVERITIES.map(
-      (severity) => `| ${severity[0].toUpperCase()}${severity.slice(1)} | ${counts[severity] ?? 0} |`
+      (severity) => `| ${severity[0].toUpperCase()}${severity.slice(1)} | ${severityCounts[severity]} |`
     ),
   ];
 
@@ -66,7 +88,7 @@ export function summarizeAuditJson(jsonText) {
           : detail.fixAvailable
             ? "yes"
             : "not reported";
-      const affectedRange = String(detail.range ?? "not reported").replace(/[\r\n|]/g, " ");
+      const affectedRange = String(detail.range ?? "not reported").replace(/[\\r\\n|]/g, " ");
 
       lines.push(
         `- **${name}** — ${detail.severity ?? "unknown"}, ${directness}; ` +
@@ -74,16 +96,7 @@ export function summarizeAuditJson(jsonText) {
       );
     }
   } else {
-    const total = SEVERITIES.reduce(
-      (sum, severity) => sum + (Number(counts[severity]) || 0),
-      0
-    );
-    lines.push(
-      "",
-      total === 0
-        ? "No dependency vulnerabilities were reported."
-        : "Vulnerability counts were reported, but package details were not included."
-    );
+    lines.push("", "No dependency vulnerabilities were reported.");
   }
 
   lines.push(
