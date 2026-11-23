@@ -115,6 +115,25 @@ describe("summarizeAuditJson", () => {
     );
   });
 
+  it("sanitizes line breaks and table delimiters in affected ranges", () => {
+    const summary = summarizeAuditJson(
+      JSON.stringify({
+        metadata: { vulnerabilities: { critical: 1, high: 0, moderate: 0, low: 0 } },
+        vulnerabilities: {
+          next: {
+            severity: "critical",
+            isDirect: true,
+            range: "16.0.0\n| forged row",
+            fixAvailable: false,
+          },
+        },
+      })
+    );
+
+    assert.match(summary, /affected range: 16\.0\.0   forged row;/);
+    assert.doesNotMatch(summary, /\n\| forged row/);
+  });
+
   it("rejects malformed JSON", () => {
     assert.throws(
       () => summarizeAuditJson("{not valid json"),
