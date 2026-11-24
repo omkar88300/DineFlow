@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getStaffRedirectPath } from "./lib/staff-route-access";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -66,51 +67,12 @@ export async function middleware(request: NextRequest) {
     return redirectTo("/login");
   }
 
-  const role = staff.role;
-
-  // Admin can access everything
-  if (role === "admin") {
-    return response;
+  const redirectPath = getStaffRedirectPath(staff.role, pathname);
+  if (redirectPath) {
+    return redirectTo(redirectPath);
   }
 
-  // Waiter can access only waiter dashboard
-  if (role === "waiter") {
-    if (
-      pathname === "/waiter" ||
-      pathname.startsWith("/waiter/")
-    ) {
-      return response;
-    }
-
-    return redirectTo("/waiter");
-  }
-
-  // Kitchen can access only kitchen dashboard
-  if (role === "kitchen") {
-    if (
-      pathname === "/kitchen" ||
-      pathname.startsWith("/kitchen/")
-    ) {
-      return response;
-    }
-
-    return redirectTo("/kitchen");
-  }
-
-  // Billing staff can access only the billing dashboard
-  if (role === "billing") {
-    if (
-      pathname === "/billing" ||
-      pathname.startsWith("/billing/")
-    ) {
-      return response;
-    }
-
-    return redirectTo("/billing");
-  }
-
-  // Unknown role
-  return redirectTo("/login");
+  return response;
 }
 
 export const config = {
