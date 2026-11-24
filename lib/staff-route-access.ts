@@ -25,7 +25,7 @@ export function getStaffRedirectPath(
 
   const homePath = ROLE_HOME_PATHS[role as keyof typeof ROLE_HOME_PATHS];
 
-  if (pathname === homePath || pathname.startsWith(\`\${homePath}/\`)) {
+  if (pathname === homePath || pathname.startsWith(`${homePath}/`)) {
     return null;
   }
 
