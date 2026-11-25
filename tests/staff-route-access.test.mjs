@@ -3,7 +3,11 @@ import { describe, it } from "node:test";
 
 import staffRouteAccess from "../.test-build/staff-route-access.js";
 
-const { getStaffRedirectPath } = staffRouteAccess;
+const {
+  getAuthResolutionState,
+  getStaffRedirectPath,
+  getStaffResolutionState,
+} = staffRouteAccess;
 
 describe("getStaffRedirectPath", () => {
   it("allows administrators to access every protected dashboard", () => {
@@ -47,5 +51,56 @@ describe("getStaffRedirectPath", () => {
     for (const role of ["owner", "", null, undefined, 42, "constructor", "toString"]) {
       assert.equal(getStaffRedirectPath(role, "/billing"), "/login");
     }
+  });
+});
+
+describe("getAuthResolutionState", () => {
+  it("treats a provider error as unavailable, not as a missing session", () => {
+    assert.equal(
+      getAuthResolutionState({ code: "AuthRetryableFetchError" }, null),
+      "unavailable"
+    );
+  });
+
+  it("treats a missing user without an error as unauthenticated", () => {
+    assert.equal(getAuthResolutionState(null, null), "unauthenticated");
+  });
+
+  it("accepts a resolved user when there is no provider error", () => {
+    assert.equal(
+      getAuthResolutionState(null, { id: "user-1" }),
+      "authenticated"
+    );
+  });
+});
+
+describe("getStaffResolutionState", () => {
+  it("treats a database error as unavailable", () => {
+    assert.equal(
+      getStaffResolutionState({ code: "08006" }, null),
+      "unavailable"
+    );
+  });
+
+  it("treats a missing staff record as unauthorized", () => {
+    assert.equal(getStaffResolutionState(null, null), "unauthorized");
+  });
+
+  it("treats inactive staff as unauthorized", () => {
+    assert.equal(
+      getStaffResolutionState(null, { is_active: false }),
+      "unauthorized"
+    );
+  });
+
+  it("authorizes only an explicitly active staff record", () => {
+    assert.equal(
+      getStaffResolutionState(null, { is_active: true }),
+      "authorized"
+    );
+    assert.equal(
+      getStaffResolutionState(null, { is_active: "true" }),
+      "unauthorized"
+    );
   });
 });
