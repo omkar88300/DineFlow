@@ -1,37 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  getAuthResolutionState,
+  getStaffRedirectPath,
+  getStaffResolutionState,
+} from "./lib/staff-route-access";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const pathname = request.nextUrl.pathname;
 
-  // Helper to preserve Supabase session cookies on redirects
+  // Keep refreshed Supabase cookies on redirects and temporary failures.
   const redirectTo = (path: string) => {
     const redirectResponse = NextResponse.redirect(
       new URL(path, request.url)
@@ -44,61 +28,95 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   };
 
-  // Not logged in → login page
-  if (!user) {
-    return redirectTo("/login");
-  }
+  const serviceUnavailable = () => {
+    const unavailableResponse = new NextResponse(
+      "Authentication is temporarily unavailable. Please try again.",
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": "30",
+        },
+      }
+    );
 
-  // Get logged-in user's staff record
-  const { data: staff, error } = await supabase
-    .from("staff")
-    .select("role, is_active")
-    .eq("auth_user_id", user.id)
-    .single();
+    response.cookies.getAll().forEach((cookie) => {
+      unavailableResponse.cookies.set(cookie);
+    });
 
-  // Staff record not found
-  if (error || !staff) {
-    return redirectTo("/login");
-  }
+    return unavailableResponse;
+  };
 
-  // Inactive staff → login
-  if (!staff.is_active) {
-    return redirectTo("/login");
-  }
+  const logFailure = (stage: string, error: unknown) => {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : "unknown";
 
-  const role = staff.role;
+    // Do not log tokens, request headers, or raw provider error messages.
+    console.error(`[middleware] ${stage} failed`, { code });
+  };
 
-  // Admin can access everything
-  if (role === "admin") {
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
+    const authResult = await supabase.auth.getUser();
+    const authState = getAuthResolutionState(
+      authResult.error,
+      authResult.data.user
+    );
+
+    if (authState === "unavailable") {
+      logFailure("Supabase Auth lookup", authResult.error);
+      return serviceUnavailable();
+    }
+
+    if (authState === "unauthenticated" || !authResult.data.user) {
+      return redirectTo("/login");
+    }
+
+    const { data: staff, error: staffError } = await supabase
+      .from("staff")
+      .select("role, is_active")
+      .eq("auth_user_id", authResult.data.user.id)
+      .maybeSingle();
+
+    const staffState = getStaffResolutionState(staffError, staff);
+
+    if (staffState === "unavailable") {
+      logFailure("staff record lookup", staffError);
+      return serviceUnavailable();
+    }
+
+    if (staffState === "unauthorized" || !staff) {
+      return redirectTo("/login");
+    }
+
+    const redirectPath = getStaffRedirectPath(staff.role, pathname);
+    if (redirectPath) {
+      return redirectTo(redirectPath);
+    }
+
     return response;
+  } catch (error) {
+    logFailure("unexpected protected-route middleware", error);
+    return serviceUnavailable();
   }
-
-  // Waiter can access only waiter dashboard
-  if (role === "waiter") {
-    if (
-      pathname === "/waiter" ||
-      pathname.startsWith("/waiter/")
-    ) {
-      return response;
-    }
-
-    return redirectTo("/waiter");
-  }
-
-  // Kitchen can access only kitchen dashboard
-  if (role === "kitchen") {
-    if (
-      pathname === "/kitchen" ||
-      pathname.startsWith("/kitchen/")
-    ) {
-      return response;
-    }
-
-    return redirectTo("/kitchen");
-  }
-
-  // Unknown role
-  return redirectTo("/login");
 }
 
 export const config = {
