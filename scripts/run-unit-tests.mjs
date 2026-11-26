@@ -52,13 +52,15 @@ function run() {
   for (const testFile of testFiles) {
     const source = readFileSync(testFile, "utf8");
     for (const match of source.matchAll(compiledImport)) {
-      const sourcePath = path.resolve(libRoot, ${match[1]}.ts);
-      if (!sourcePath.startsWith(${libRoot}${path.sep})) {
-        throw new Error(\`Invalid compiled-module path in ${testFile}.\`);
+      const sourcePath = path.resolve(libRoot, match[1] + ".ts");
+      if (!sourcePath.startsWith(libRoot + path.sep)) {
+        throw new Error("Invalid compiled-module path in " + testFile + ".");
       }
       if (!existsSync(sourcePath)) {
         throw new Error(
-          \`Test ${path.relative(root, testFile)} imports a compiled module whose source is missing: ${path.relative(root, sourcePath)}\`
+          "Test " + path.relative(root, testFile) +
+          " imports a compiled module whose source is missing: " +
+          path.relative(root, sourcePath)
         );
       }
       sourceFiles.add(sourcePath);
