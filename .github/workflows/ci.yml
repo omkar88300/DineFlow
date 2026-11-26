@@ -37,6 +37,25 @@ jobs:
         id: install
         run: npm ci
 
+      - name: Test dependency audit summary
+        if: ${{ hashFiles('scripts/summarize-npm-audit.test.mjs') != '' }}
+        run: node --test scripts/summarize-npm-audit.test.mjs
+
+      - name: Summarize dependency audit
+        if: ${{ hashFiles('scripts/summarize-npm-audit.mjs') != '' }}
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > npm-audit.json
+          audit_exit_code=$?
+          set -e
+
+          node scripts/summarize-npm-audit.mjs npm-audit.json
+
+          if [ "$audit_exit_code" -ne 0 ]; then
+            echo "::warning::npm audit reported dependency vulnerabilities. Review the job summary."
+          fi
+
       - name: Run unit tests
         if: ${{ hashFiles('tests/**/*.test.mjs') != '' }}
         run: npm test
