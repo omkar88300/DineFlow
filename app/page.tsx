@@ -47,7 +47,7 @@ export default function Home() {
       ? Number(qrTable)
       : 12;
 
-    setTableNumber(currentTableNumber);
+    void Promise.resolve().then(() => setTableNumber(currentTableNumber));
 
     async function loadRestaurant() {
       try {

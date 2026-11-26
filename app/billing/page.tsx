@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 type Order = {
@@ -37,119 +37,200 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
   const [error, setError] = useState("");
+  const paymentDialogRef = useRef<HTMLDivElement>(null);
+  const paymentTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     loadOrders();
   }, []);
 
+  useEffect(() => {
+    if (!selectedOrder) return;
+
+    const dialog = paymentDialogRef.current;
+    if (!dialog) return;
+
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const focusableElements = Array.from(
+      dialog.querySelectorAll<HTMLElement>(focusableSelector)
+    );
+    focusableElements[0]?.focus();
+
+    function handleDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelectedOrder(null);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const activeDialog = paymentDialogRef.current;
+      if (!activeDialog) return;
+
+      const currentFocusableElements = Array.from(
+        activeDialog.querySelectorAll<HTMLElement>(focusableSelector)
+      ).filter((element) => !element.hasAttribute("disabled"));
+
+      if (currentFocusableElements.length === 0) return;
+
+      const first = currentFocusableElements[0];
+      const last = currentFocusableElements[currentFocusableElements.length - 1];
+
+      if (!activeDialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      paymentTriggerRef.current?.focus();
+    };
+  }, [selectedOrder]);
+
   async function loadOrders() {
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    // Get hotel
-    const { data: hotel, error: hotelError } = await supabase
-      .from("hotels")
-      .select("id")
-      .eq("slug", "dineflow-demo")
-      .single();
+      // Get hotel
+      const { data: hotel, error: hotelError } = await supabase
+        .from("hotels")
+        .select("id")
+        .eq("slug", "dineflow-demo")
+        .single();
 
-    if (hotelError || !hotel) {
-      setError("Hotel not found.");
-      setLoading(false);
-      return;
-    }
-
-    // Get served orders
-    const { data: ordersData, error: ordersError } =
-      await supabase
-        .from("orders")
-        .select(`
-          id,
-          order_number,
-          status,
-          subtotal,
-          discount,
-          total,
-          payment_status,
-          payment_method,
-          created_at,
-          restaurant_tables (
-            table_number
-          )
-        `)
-        .eq("hotel_id", hotel.id)
-        .eq("status", "served")
-        .order("created_at", {
-          ascending: false,
-        });
-
-    if (ordersError) {
-      setError(ordersError.message);
-      setLoading(false);
-      return;
-    }
-
-    const formattedOrders: Order[] =
-      (ordersData || []).map((order: any) => ({
-        id: order.id,
-        order_number: order.order_number,
-        status: order.status,
-        subtotal: Number(order.subtotal),
-        discount: Number(order.discount),
-        total: Number(order.total),
-        payment_status: order.payment_status,
-        payment_method: order.payment_method,
-        created_at: order.created_at,
-        table_number:
-          order.restaurant_tables?.table_number ?? null,
-      }));
-
-    setOrders(formattedOrders);
-
-    // Get order items
-    if (formattedOrders.length > 0) {
-      const orderIds = formattedOrders.map(
-        (order) => order.id
-      );
-
-      const { data: itemsData, error: itemsError } =
-        await supabase
-          .from("order_items")
-          .select(`
-            id,
-            order_id,
-            item_name,
-            quantity,
-            unit_price,
-            total_price
-          `)
-          .in("order_id", orderIds);
-
-      if (itemsError) {
-        setError(itemsError.message);
-        setLoading(false);
+      if (hotelError || !hotel) {
+        console.error("Load billing hotel error:", hotelError);
+        setOrders([]);
+        setOrderItems([]);
+        setError("Unable to load restaurant information. Please try again.");
         return;
       }
 
-      setOrderItems(
-        (itemsData || []).map((item) => ({
-          id: item.id,
-          order_id: item.order_id,
-          item_name: item.item_name,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          total_price: Number(item.total_price),
-        }))
-      );
-    } else {
-      setOrderItems([]);
-    }
+      // Get served orders
+      const { data: ordersData, error: ordersError } =
+        await supabase
+          .from("orders")
+          .select(`
+            id,
+            order_number,
+            status,
+            subtotal,
+            discount,
+            total,
+            payment_status,
+            payment_method,
+            created_at,
+            restaurant_tables (
+              table_number
+            )
+          `)
+          .eq("hotel_id", hotel.id)
+          .eq("status", "served")
+          .order("created_at", {
+            ascending: false,
+          });
 
-    setLoading(false);
+      if (ordersError) {
+        console.error("Load billing orders error:", ordersError);
+        setOrders([]);
+        setOrderItems([]);
+        setError("Unable to load served orders. Please try again.");
+        return;
+      }
+
+      const formattedOrders: Order[] =
+        (ordersData || []).map((order: { id: string; order_number: number; status: string; subtotal: number | string; discount: number | string; total: number | string; payment_status: string; payment_method: string | null; created_at: string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
+          id: order.id,
+          order_number: order.order_number,
+          status: order.status,
+          subtotal: Number(order.subtotal),
+          discount: Number(order.discount),
+          total: Number(order.total),
+          payment_status: order.payment_status,
+          payment_method: order.payment_method,
+          created_at: order.created_at,
+          table_number:
+            (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
+        }));
+
+      setOrders(formattedOrders);
+
+      // Get order items
+      if (formattedOrders.length > 0) {
+        const orderIds = formattedOrders.map(
+          (order) => order.id
+        );
+
+        const { data: itemsData, error: itemsError } =
+          await supabase
+            .from("order_items")
+            .select(`
+              id,
+              order_id,
+              item_name,
+              quantity,
+              unit_price,
+              total_price
+            `)
+            .in("order_id", orderIds);
+
+        if (itemsError) {
+          console.error("Load billing order items error:", itemsError);
+          setOrderItems([]);
+          setError("Unable to load order items. Please try again.");
+          return;
+        }
+
+        setOrderItems(
+          (itemsData || []).map((item) => ({
+            id: item.id,
+            order_id: item.order_id,
+            item_name: item.item_name,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            total_price: Number(item.total_price),
+          }))
+        );
+      } else {
+        setOrderItems([]);
+      }
+    } catch (caughtError) {
+      console.error("Unexpected billing dashboard load error:", caughtError);
+      setOrders([]);
+      setOrderItems([]);
+      setError("Unable to load billing information. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openPaymentDialog(order: Order) {
+    paymentTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setSelectedOrder(order);
+    setMessage(null);
   }
 
   function getItemsForOrder(orderId: string) {
@@ -164,34 +245,49 @@ export default function BillingPage() {
     }
 
     setProcessing(true);
-    setMessage("");
+    setMessage(null);
 
-    const supabase = createClient();
+    let paymentSucceeded = false;
 
-    const { error } = await supabase.rpc(
-      "mark_order_as_paid",
-      {
-        p_order_id: selectedOrder.id,
-        p_payment_method: paymentMethod,
-      }
-    );
+    try {
+      const supabase = createClient();
 
-    if (error) {
-      setMessage(
-        `Payment failed: ${error.message}`
+      const { error: paymentError } = await supabase.rpc(
+        "mark_order_as_paid",
+        {
+          p_order_id: selectedOrder.id,
+          p_payment_method: paymentMethod,
+        }
       );
+
+      if (paymentError) {
+        console.error("Mark order as paid error:", paymentError);
+        setMessage({
+          text: "Payment could not be completed. Please try again.",
+          type: "error",
+        });
+        return;
+      }
+
+      paymentSucceeded = true;
+      setMessage({
+        text: `Order #${selectedOrder.order_number} marked as paid successfully.`,
+        type: "success",
+      });
+      setSelectedOrder(null);
+    } catch (caughtError) {
+      console.error("Unexpected mark order as paid error:", caughtError);
+      setMessage({
+        text: "Payment could not be completed. Please try again.",
+        type: "error",
+      });
+    } finally {
       setProcessing(false);
-      return;
     }
 
-    setMessage(
-      `Order #${selectedOrder.order_number} marked as paid successfully.`
-    );
-
-    setProcessing(false);
-    setSelectedOrder(null);
-
-    await loadOrders();
+    if (paymentSucceeded) {
+      await loadOrders();
+    }
   }
 
   if (loading) {
@@ -221,14 +317,26 @@ export default function BillingPage() {
 
         {/* MESSAGE */}
         {message && (
-          <div className="bg-green-100 border border-green-300 text-green-800 rounded-xl p-4 mb-6">
-            {message}
+          <div
+            role={message.type === "error" ? "alert" : "status"}
+            aria-live={message.type === "error" ? "assertive" : "polite"}
+            className={`rounded-xl p-4 mb-6 border ${
+              message.type === "error"
+                ? "bg-red-100 border-red-300 text-red-800"
+                : "bg-green-100 border-green-300 text-green-800"
+            }`}
+          >
+            {message.text}
           </div>
         )}
 
         {/* ERROR */}
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-800 rounded-xl p-4 mb-6">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="bg-red-100 border border-red-300 text-red-800 rounded-xl p-4 mb-6"
+          >
             {error}
           </div>
         )}
@@ -390,10 +498,9 @@ export default function BillingPage() {
                     {/* PAY BUTTON */}
                     {order.payment_status !== "paid" && (
                       <button
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setMessage("");
-                        }}
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={() => openPaymentDialog(order)}
                         className="w-full bg-black text-white py-3 rounded-xl font-bold mt-5 hover:bg-gray-800"
                       >
                         Generate Bill
@@ -415,12 +522,19 @@ export default function BillingPage() {
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-5 z-50">
 
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+          <div
+            ref={paymentDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-dialog-title"
+            aria-describedby="payment-dialog-description"
+            className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl"
+          >
 
             <div className="flex justify-between items-center">
 
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 id="payment-dialog-title" className="text-2xl font-bold">
                   Payment
                 </h2>
 
@@ -430,6 +544,8 @@ export default function BillingPage() {
               </div>
 
               <button
+                type="button"
+                aria-label="Close payment dialog"
                 onClick={() => setSelectedOrder(null)}
                 className="text-gray-500 text-2xl"
               >
@@ -441,7 +557,7 @@ export default function BillingPage() {
             {/* TOTAL */}
             <div className="bg-gray-100 rounded-2xl p-5 mt-5 text-center">
 
-              <p className="text-gray-500">
+              <p id="payment-dialog-description" className="text-gray-500">
                 Amount to Pay
               </p>
 
@@ -454,13 +570,19 @@ export default function BillingPage() {
             {/* PAYMENT METHOD */}
             <div className="mt-6">
 
-              <label className="font-semibold">
+              <p id="payment-method-label" className="font-semibold">
                 Payment Method
-              </label>
+              </p>
 
-              <div className="grid grid-cols-3 gap-3 mt-3">
+              <div
+                role="group"
+                aria-labelledby="payment-method-label"
+                className="grid grid-cols-3 gap-3 mt-3"
+              >
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "cash"}
                   onClick={() => setPaymentMethod("cash")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "cash"
@@ -472,6 +594,8 @@ export default function BillingPage() {
                 </button>
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "upi"}
                   onClick={() => setPaymentMethod("upi")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "upi"
@@ -483,6 +607,8 @@ export default function BillingPage() {
                 </button>
 
                 <button
+                  type="button"
+                  aria-pressed={paymentMethod === "card"}
                   onClick={() => setPaymentMethod("card")}
                   className={`p-3 rounded-xl border-2 font-semibold ${
                     paymentMethod === "card"
@@ -499,6 +625,7 @@ export default function BillingPage() {
 
             {/* CONFIRM */}
             <button
+              type="button"
               onClick={markAsPaid}
               disabled={processing}
               className="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-lg mt-6 hover:bg-green-700 disabled:opacity-50"

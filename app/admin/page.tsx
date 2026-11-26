@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 type Stats = {
   todayOrders: number;
@@ -103,8 +104,9 @@ export default function AdminPage() {
     }
 
     const orders = todayOrders || [];
+type DashboardOrder = (typeof orders)[number];
 
-    // Today's revenue = paid orders only
+    // Today&apos;s revenue = paid orders only
     const todayRevenue = orders
       .filter(
         (order) =>
@@ -154,15 +156,14 @@ export default function AdminPage() {
 
     // Recent orders
     setRecentOrders(
-      orders.slice(0, 6).map((order: any) => ({
+      orders.slice(0, 6).map((order: { id: string; order_number: number; status: string; payment_status: string; total: number | string; restaurant_tables: { table_number: number | null } | { table_number: number | null }[] | null }) => ({
         id: order.id,
         order_number: order.order_number,
         status: order.status,
         payment_status: order.payment_status,
         total: Number(order.total || 0),
         table_number:
-          order.restaurant_tables?.table_number ??
-          null,
+          (Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0]?.table_number : order.restaurant_tables?.table_number) ?? null,
       }))
     );
 
@@ -242,7 +243,7 @@ export default function AdminPage() {
             </div>
 
             <p className="text-gray-500 mt-4">
-              Today's Orders
+              Today&apos;s Orders
             </p>
 
             <p className="text-3xl font-bold mt-1">
@@ -257,7 +258,7 @@ export default function AdminPage() {
             </div>
 
             <p className="text-gray-500 mt-4">
-              Today's Revenue
+              Today&apos;s Revenue
             </p>
 
             <p className="text-3xl font-bold mt-1">
@@ -324,8 +325,7 @@ export default function AdminPage() {
 
 
           {/* TABLES */}
-          <a
-            href="/tables"
+          <Link href="/tables"
             className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
           >
             <div className="text-3xl">
@@ -339,11 +339,10 @@ export default function AdminPage() {
             <p className="text-gray-500 text-sm mt-1">
               Manage tables & QR codes
             </p>
-          </a>
+          </Link>
 
           {/* KITCHEN */}
-          <a
-            href="/kitchen"
+          <Link href="/kitchen"
             className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
           >
               <div className="text-3xl">
@@ -357,10 +356,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Manage live orders
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/waiter"
+            <Link href="/waiter"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -374,10 +372,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Place table orders
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/billing"
+            <Link href="/billing"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -391,11 +388,10 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Manage payments
               </p>
-            </a>
+            </Link>
 
             {/* MENU MANAGEMENT */}
-            <a
-              href="/menu"
+            <Link href="/menu"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -409,10 +405,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Add, edit & manage menu
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/staff"
+            <Link href="/staff"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
               <div className="text-3xl">
@@ -426,9 +421,9 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Add, edit & manage staff
               </p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/"
               className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition"
             >
@@ -443,7 +438,7 @@ export default function AdminPage() {
               <p className="text-gray-500 text-sm mt-1">
                 Open digital menu
               </p>
-            </a>
+            </Link>
 
           </div>
 
@@ -456,7 +451,7 @@ export default function AdminPage() {
 
             <div>
               <h2 className="text-2xl font-bold">
-                Today's Orders
+                Today&apos;s Orders
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
