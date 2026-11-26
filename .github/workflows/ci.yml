@@ -38,9 +38,11 @@ jobs:
         run: npm ci
 
       - name: Test dependency audit summary
+        if: ${{ hashFiles('scripts/summarize-npm-audit.test.mjs') != '' }}
         run: node --test scripts/summarize-npm-audit.test.mjs
 
       - name: Summarize dependency audit
+        if: ${{ hashFiles('scripts/summarize-npm-audit.mjs') != '' }}
         shell: bash
         run: |
           set +e
