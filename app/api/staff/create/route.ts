@@ -185,7 +185,7 @@ export async function POST(request: Request) {
      */
     const { data: invitedUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: \`\${adminEnvironment.siteUrl}/auth/callback\`,
+        redirectTo: adminEnvironment.siteUrl + "/auth/callback",
       });
 
     if (inviteError || !invitedUser.user) {
