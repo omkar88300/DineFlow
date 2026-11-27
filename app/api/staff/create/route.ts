@@ -7,7 +7,41 @@ import {
   getStaffCreationAdminEnvironment,
   getSupabasePublicEnvironment,
 } from "@/lib/env";
+import {
+  getStaffCreationAdminState,
+  getStaffCreationAuthState,
+} from "@/lib/staff-creation-access";
 import { validateStaffPayload } from "@/lib/staff-validation";
+
+function serviceUnavailableResponse() {
+  return NextResponse.json(
+    { error: "Unable to verify your staff access. Please try again." },
+    {
+      status: 503,
+      headers: {
+        "Cache-Control": "no-store",
+        "Retry-After": "30",
+      },
+    }
+  );
+}
+
+function logSupabaseLookupFailure(stage: string, error: unknown) {
+  const details: { code?: string; status?: number } = {};
+
+  if (typeof error === "object" && error !== null) {
+    if ("code" in error && typeof error.code === "string") {
+      details.code = error.code;
+    }
+
+    if ("status" in error && typeof error.status === "number") {
+      details.status = error.status;
+    }
+  }
+
+  // Avoid logging raw provider messages, request headers, or session tokens.
+  console.error("[staff-create] " + stage + " failed", details);
+}
 
 export async function POST(request: Request) {
   try {
@@ -65,7 +99,14 @@ export async function POST(request: Request) {
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
+    const authState = getStaffCreationAuthState(userError, user);
+
+    if (authState === "unavailable") {
+      logSupabaseLookupFailure("Supabase Auth lookup", userError);
+      return serviceUnavailableResponse();
+    }
+
+    if (authState === "unauthenticated" || !user) {
       return NextResponse.json(
         { error: "You must be logged in." },
         { status: 401 }
@@ -79,14 +120,16 @@ export async function POST(request: Request) {
       .from("staff")
       .select("id, hotel_id, role, is_active")
       .eq("auth_user_id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (
-      adminError ||
-      !adminStaff ||
-      adminStaff.role !== "admin" ||
-      !adminStaff.is_active
-    ) {
+    const adminState = getStaffCreationAdminState(adminError, adminStaff);
+
+    if (adminState === "unavailable") {
+      logSupabaseLookupFailure("admin staff lookup", adminError);
+      return serviceUnavailableResponse();
+    }
+
+    if (adminState === "forbidden" || !adminStaff) {
       return NextResponse.json(
         { error: "Only active admins can create staff accounts." },
         { status: 403 }
@@ -142,7 +185,7 @@ export async function POST(request: Request) {
      */
     const { data: invitedUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${adminEnvironment.siteUrl}/auth/callback`,
+        redirectTo: \`\${adminEnvironment.siteUrl}/auth/callback\`,
       });
 
     if (inviteError || !invitedUser.user) {
